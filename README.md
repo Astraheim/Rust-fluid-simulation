@@ -5,3 +5,4 @@ The goal is to code a real-time fluid simulation for a school project.
 I've chosen an Eulerian simulation to allow for future expansion into an "infinite" world.
 Here, I plan to use WGPU to optimize my code as much as possible.
 Rayon is also being used to parallelize the calculations.
+By now, I'm using minifb to visualise my simulation, but a said, I'll switch to wgpu.
