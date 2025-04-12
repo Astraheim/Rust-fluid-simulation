@@ -1,0 +1,90 @@
+
+
+// Implémentation de l'advection CIP-CSL4 en 2D
+fn advection_cip_csl4(grid: &mut Grid, dt: f32, dx: f32, dy: f32) {
+    // Boucles sur les cellules de la grille
+    for i in 1..(DX as usize - 1) {  // DX est utilisé ici
+        for j in 1..(DY as usize - 1) {  // DY est utilisé ici
+            // Calcul de l'indice de la cellule dans le tableau 1D
+            let index = i * DY as usize + j;  // L'indice est basé sur DY
+
+            // Vitesse aux points (i, j)
+            let ux = grid.cells[index].velocity.x;  // Vitesse en x
+            let uy = grid.cells[index].velocity.y;  // Vitesse en y
+
+            // Calcul de la position de la particule amont
+            let xp = i as f32 - ux * dt / dx;
+            let yp = j as f32 - uy * dt / dy;
+
+            // Interpolation CIP (version simplifiée ici, ajuster pour le CIP-CSL4)
+            let coeffs_x = calculate_cip_coeffs(xp, dx);
+            let coeffs_y = calculate_cip_coeffs(yp, dy);
+
+            // Interpolation des valeurs de densité et de vitesse (passage de références)
+            let density_interp = interpolate_density(grid, &coeffs_x, &coeffs_y);
+            let velocity_x_interp = interpolate_velocity(grid, &coeffs_x, &coeffs_y, true);
+            let velocity_y_interp = interpolate_velocity(grid, &coeffs_x, &coeffs_y, false);
+
+            // Mise à jour de la densité avec la méthode CIP-CSL4
+            // Calcul du flux traversant les cellules (en 2D)
+            let flux_x = velocity_x_interp * density_interp;
+            let flux_y = velocity_y_interp * density_interp;
+
+            // Mise à jour des valeurs de la cellule avec le flux
+            grid.cells[index].density += dt * (-flux_x - flux_y);
+        }
+    }
+}
+
+// Calcul des coefficients d'interpolation CIP pour une position donnée
+fn calculate_cip_coeffs(xp: f32, dx: f32) -> Vec<f32> {
+    let mut coeffs = vec![0.0; 4]; // 4 coefficients pour l'interpolation cubique
+
+    // Déterminer les coefficients CIP pour l'interpolation cubique
+    let idx = xp.floor() as usize; // Index de la cellule la plus proche à gauche
+    let delta = xp - idx as f32;
+
+    // Coefficients CIP basés sur la distance relative de la particule à la cellule
+    coeffs[0] = -0.5 * delta * delta + 0.75;
+    coeffs[1] = delta * delta - 1.5 * delta + 1.0;
+    coeffs[2] = -delta * delta + 0.5 * delta + 0.75;
+    coeffs[3] = 0.5 * delta * delta - 0.25;
+
+    coeffs
+}
+
+// Interpolation de la densité sur la grille
+fn interpolate_density(grid: &Grid, coeffs_x: &[f32], coeffs_y: &[f32]) -> f32 {
+    let mut density = 0.0;
+
+    // Interpolation bilinéaire entre les coefficients d'interpolation en x et y
+    for i in 0..4 {
+        for j in 0..4 {
+            let ix = i as usize;
+            let jy = j as usize;
+            // Accéder à la densité dans la cellule correcte
+            density += coeffs_x[i] * coeffs_y[j] * grid.cells[ix * DY as usize + jy].density;
+        }
+    }
+    density
+}
+
+// Interpolation de la vitesse (x ou y) sur la grille
+fn interpolate_velocity(grid: &Grid, coeffs_x: &[f32], coeffs_y: &[f32], is_x: bool) -> f32 {
+    let mut velocity = 0.0;
+
+    // Interpolation bilinéaire entre les coefficients d'interpolation en x et y
+    for i in 0..4 {
+        for j in 0..4 {
+            let ix = i as usize;
+            let jy = j as usize;
+            // Accéder à la vitesse en x ou y dans la cellule correcte
+            if is_x {
+                velocity += coeffs_x[i] * coeffs_y[j] * grid.cells[ix * DY as usize + jy].velocity.x;
+            } else {
+                velocity += coeffs_x[i] * coeffs_y[j] * grid.cells[ix * DY as usize + jy].velocity.y;
+            }
+        }
+    }
+    velocity
+}

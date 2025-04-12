@@ -1,0 +1,177 @@
+
+
+
+
+
+
+
+    // Fonction d'advection CIP — CSL4 conservatrice (2D) appliquée à la densité.
+    pub fn advect_density_cip_csl4(&mut self, dt: f32) {
+        let mut new_cells = self.cells.clone();
+
+        // Convertir l'itérateur parallèle en séquentiel
+        let morton_cells: Vec<_> = self.iter_morton_par().collect();
+
+        for (i, j, idx) in morton_cells {
+            let cell = &self.cells[idx];
+            if cell.wall {
+                continue;
+            }
+
+            let Vector2 { x: u, y: v } = cell.velocity;
+            if u == 0.0 && v == 0.0 {
+                continue;
+            }
+
+            // Calculer la position de départ des particules
+            let x0 = -u * dt;
+            let y0 = -v * dt;
+
+            let i0 = i as f32 + x0;
+            let j0 = j as f32 + y0;
+
+            // Interpolation avec les dérivées pour le calcul du polynôme CIP-CSL4
+            let interpolate_density = |x: f32, y: f32| -> f32 {
+                let i_int = x.floor() as isize;
+                let j_int = y.floor() as isize;
+
+                let dx = x - i_int as f32;
+                let dy = y - j_int as f32;
+
+                // Valeurs aux points voisins avec try_index
+                let phi00 = 5.0*self.try_index(i_int as usize, j_int as usize)
+                    .map_or(cell.density, |id| self.cells[id].density);
+                let phi10 = self.try_index((i_int + 1) as usize, j_int as usize)
+                    .map_or(cell.density, |id| self.cells[id].density);
+                let phi01 = self.try_index(i_int as usize, (j_int + 1) as usize)
+                    .map_or(cell.density, |id| self.cells[id].density);
+                let phi11 = self.try_index((i_int + 1) as usize, (j_int + 1) as usize)
+                    .map_or(cell.density, |id| self.cells[id].density);
+
+                let dphi_x0 = self.try_index(i_int as usize, j_int as usize)
+                    .map_or(cell.density_x, |id| self.cells[id].density_x);
+                let dphi_y0 = self.try_index(i_int as usize, j_int as usize)
+                    .map_or(cell.density_y, |id| self.cells[id].density_y);
+                let dphi_xx0 = self.try_index(i_int as usize, j_int as usize)
+                    .map_or(cell.density_xx, |id| self.cells[id].density_xx);
+                let dphi_yy0 = self.try_index(i_int as usize, j_int as usize)
+                    .map_or(cell.density_yy, |id| self.cells[id].density_yy);
+                let dphi_xy0 = self.try_index(i_int as usize, j_int as usize)
+                    .map_or(cell.density_xy, |id| self.cells[id].density_xy);
+
+                // Interpolation bilinéaire pour la densité
+                let phi = (1.0 - dx) * (1.0 - dy) * phi00
+                    + dx * (1.0 - dy) * phi10
+                    + (1.0 - dx) * dy * phi01
+                    + dx * dy * phi11;
+
+                // Correction avec les dérivées (CIP-CSL4)
+                let density_x = (1.0 - dx) * (1.0 - dy) * dphi_x0
+                    + dx * (1.0 - dy) * dphi_x0
+                    + (1.0 - dx) * dy * dphi_x0
+                    + dx * dy * dphi_x0;
+
+                let density_y = (1.0 - dx) * (1.0 - dy) * dphi_y0
+                    + dx * (1.0 - dy) * dphi_y0
+                    + (1.0 - dx) * dy * dphi_y0
+                    + dx * dy * dphi_y0;
+
+                phi
+            };
+
+            // Calcul de la densité au nouvel endroit avec interpolation bilinéaire
+            let rho = interpolate_density(i0, j0);
+
+            // Mise à jour des cellules dans `new_cells`
+            new_cells[idx].density = rho;
+        }
+
+        // Remplacer les anciennes cellules par les nouvelles
+        self.cells = new_cells;
+    }
+
+
+
+    // Fonction d'advection CIP — CSL4 conservatrice (2D) appliquée à la densité.
+    pub fn a2dvect_density_cip_csl4(&mut self, dt: f32) {
+        let mut new_cells = self.cells.clone();
+
+        // Convertir l'itérateur parallèle en séquentiel
+        let morton_cells: Vec<_> = self.iter_morton_par().collect();
+
+        for (i, j, idx) in morton_cells {
+            let cell = &self.cells[idx];
+            if cell.wall {
+                continue;
+            }
+
+            let Vector2 { x: u, y: v } = cell.velocity;
+            if u == 0.0 && v == 0.0 {
+                continue;
+            }
+
+            let x0 = -u * dt;
+            let y0 = -v * dt;
+
+            let i0 = i as isize + x0.floor() as isize;
+            let j0 = j as isize + y0.floor() as isize;
+
+            if let Some(src_idx) = self.try_index(i0 as usize, j0 as usize) {
+                let src = &self.cells[src_idx];
+                if src.wall {
+                    continue;
+                }
+
+                let dx = x0 - x0.floor();
+                let dy = y0 - y0.floor();
+
+                let phi0 = src.density;
+                let phi_x0 = src.density_x;
+                let phi_y0 = src.density_y;
+                let phi_xx0 = src.density_xx;
+                let phi_yy0 = src.density_yy;
+                let phi_xy0 = src.density_xy;
+
+                let phi1x = self
+                    .try_index((i0 + 1) as usize, j0 as usize)
+                    .map(|id| self.cells[id].density)
+                    .unwrap_or(phi0);
+
+                let phi1y = self
+                    .try_index(i0 as usize, (j0 + 1) as usize)
+                    .map(|id| self.cells[id].density)
+                    .unwrap_or(phi0);
+
+                // Coefficients du polynôme d'ordre 3 (ou partiel d'ordre 4)
+                let a00 = phi0;
+                let a10 = phi_x0;
+                let a01 = phi_y0;
+                let a20 = 0.5 * phi_xx0;
+                let a02 = 0.5 * phi_yy0;
+                let a11 = phi_xy0;
+
+                let a30 = phi1x - phi0 - a10 - a20;
+                let a03 = phi1y - phi0 - a01 - a02;
+
+                let x = dx;
+                let y = dy;
+
+                let fxx_diffusion = DENS_ADV_FAC * cell.density_xx;
+                let fyy_diffusion = DENS_ADV_FAC * cell.density_yy;
+
+                let rho = a00
+                    + a10 * x + a01 * y
+                    + a20 * x * x + a11 * x * y + a02 * y * y
+                    + a30 * x * x * x + a03 * y * y * y
+                    + fxx_diffusion + fyy_diffusion;
+
+                // Mise à jour des cellules dans `new_cells`
+                new_cells[idx].density = rho;
+            }
+        }
+
+        // Remplacer les anciennes cellules par les nouvelles
+        self.cells = new_cells;
+    }
+
+
