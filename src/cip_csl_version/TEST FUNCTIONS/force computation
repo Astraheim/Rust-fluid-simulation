@@ -1,0 +1,9 @@
+1. Pression sur les murs
+La force due à la pression est :
+
+𝐹⃗ = −𝑝⋅𝑛⃗⋅𝐴
+
+𝑝 est la pression dans la cellule voisine du mur.
+𝑛⃗ est la normale au mur (orientée du mur vers le fluide).
+A est l'aire de la face (dans un cas 2D, c’est simplement la longueur).
+
