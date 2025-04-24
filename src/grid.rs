@@ -2,7 +2,7 @@ use crate::conditions::*;
 use std::vec::Vec;
 use rayon::prelude::*;
 use std::fmt::Write;
-use crate::cip_csl4_v7_2d::*;
+use std::ops::Mul;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector2 {
@@ -28,11 +28,54 @@ pub struct Grid {
     pub cells: Vec<Cell>,
 }
 
+
+
+impl Mul<f32> for Vector2 {
+    type Output = Vector2;
+
+    fn mul(self, rhs: f32) -> Vector2 {
+        Vector2 {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl Mul<Vector2> for f32 {
+    type Output = Vector2;
+
+    fn mul(self, rhs: Vector2) -> Vector2 {
+        Vector2 {
+            x: self * rhs.x,
+            y: self * rhs.y,
+        }
+    }
+}
+
+
+
 impl Vector2 {
 
     // Return vector magnitude
     pub fn magnitude(&self) -> f32 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
+    }
+
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+
+    pub fn length(&self) -> f32 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+
+    pub fn normalize(&self) -> Self {
+        let len = self.length();
+        if len == 0.0 {
+            Self::new(0.0, 0.0)
+        } else {
+            Self::new(self.x / len, self.y / len)
+        }
     }
 }
 
@@ -68,6 +111,11 @@ fn compact1by1(mut n: usize) -> usize {
 }
 
 impl Grid {
+
+    // Check if the coordinates (i, j) are within the grid bounds
+    pub fn in_bounds(&self, i: usize, j: usize) -> bool {
+        i >= 1 && i <= N as usize && j >= 1 && j <= N as usize
+    }
 
     // Encoding to morton index
     pub fn to_index(&self, i: usize, j: usize) -> usize {
@@ -240,53 +288,96 @@ impl Grid {
         });
     }
 
+    // Calcul de la moyenne de la vitesse verticale v entre deux cellules adjacentes (cellules voisines)
+    fn avg_v(&self, i: usize, j: usize) -> f32 {
+        let n = N + 1.0 ;
+        0.5 * (self.cells[i * n as usize + j].velocity.y + self.cells[i * n as usize + j + 1].velocity.y)
+    }
+
+    // Calcul de la moyenne de la vitesse horizontale u entre deux cellules adjacentes (cellules voisines)
+    fn avg_u(&self, i: usize, j: usize) -> f32 {
+        let n = N;
+        0.5 * (self.cells[i * n as usize + j].velocity.x + self.cells[(i + 1) * n as usize + j].velocity.x)
+    }
+
 
 
     // Advect density in the grid
     pub fn advect_density(&mut self, dt: f32) {
-        let dt0 = dt * N;
+        let dt0 = dt * N as f32;
 
-        let new_cells: Vec<Cell> = self.cells.par_iter().enumerate().map(|(idx, cell)| {
+        // Save total density before advection
+        //let total_density_before = self.total_density();
+
+        // New densities after advection
+        let new_densities: Vec<f32> = self.cells.par_iter().enumerate().map(|(idx, cell)| {
             let (i, j) = morton_decode(idx);
-            if cell.wall || i == 0 || i == (N + 1.0) as usize || j == 0 || j == (N + 1.0) as usize {
-                return *cell;
+
+            // Preserve density for walls and boundaries
+            if cell.wall || i == 0 || i >= N as usize || j == 0 || j >= N as usize {
+                return cell.density;
             }
 
-            let x = (i as f32) - dt0 * cell.velocity.x;
-            let y = (j as f32) - dt0 * cell.velocity.y;
-            let x = x.clamp(1.0, N);
-            let y = y.clamp(1.0, N);
+            // Backtracking: where did the fluid particle come from
+            let x = i as f32 - dt0 * cell.velocity.x;
+            let y = j as f32 - dt0 * cell.velocity.y;
 
-            let i0 = x.floor().clamp(1.0, N as f32) as usize;
-            let i1 = (i0 + 1).min((N + 1.0) as usize);
-            let j0 = y.floor().clamp(1.0, N as f32) as usize;
-            let j1 = (j0 + 1).min((N + 1.0) as usize);
+            // Clamping with reflection at boundaries (but not limiting the actual density values)
+            let x = x.clamp(0.5, N as f32 + 0.5);
+            let y = y.clamp(0.5, N as f32 + 0.5);
+
+            // Indices and weights for bilinear interpolation
+            let i0 = x.floor() as usize;
+            let i1 = i0 + 1;
+            let j0 = y.floor() as usize;
+            let j1 = j0 + 1;
 
             let s1 = x - i0 as f32;
             let s0 = 1.0 - s1;
             let t1 = y - j0 as f32;
             let t0 = 1.0 - t1;
 
+            // Improved function to get density with reflection at walls
             let get_density = |i: usize, j: usize| -> f32 {
-                if i <= (N + 1.0) as usize && j <= (N + 1.0) as usize {
+                if i < self.cells.len() && j < self.cells.len() {
                     let idx = morton_encode(i, j);
-                    if !self.cells[idx].wall {
-                        return self.cells[idx].density;
+                    if idx < self.cells.len() {
+                        if !self.cells[idx].wall {
+                            return self.cells[idx].density;
+                        } else {
+                            // Reflection: use density of current cell
+                            return cell.density;
+                        }
                     }
                 }
-                0.0 // on ignore les murs ou bordures en considérant 0
+                // For out-of-bounds cells, use current cell's density
+                cell.density
             };
 
-            let density =
-                s0 * (t0 * get_density(i0, j0) + t1 * get_density(i0, j1)) +
-                    s1 * (t0 * get_density(i1, j0) + t1 * get_density(i1, j1));
+            // Bilinear interpolation
+            let density = s0 * (t0 * get_density(i0, j0) + t1 * get_density(i0, j1)) +
+                s1 * (t0 * get_density(i1, j0) + t1 * get_density(i1, j1));
 
-            Cell { density: density.clamp(0.0, 255.0), ..*cell }
+            density.max(0.0) // Avoid negative values but no upper limit
         }).collect();
 
-        self.cells.par_iter_mut().zip(new_cells).for_each(|(cell, new_cell)| {
-            cell.density = new_cell.density;
-        });
+        // Update densities
+        for (i, &new_density) in new_densities.iter().enumerate() {
+            self.cells[i].density = new_density;
+        }
+
+        // Mass conservation correction (optional)
+        /*let total_density_after = self.total_density();
+        if total_density_after > 0.0 && total_density_before > 0.0 {
+            let correction_factor = total_density_before / total_density_after;
+
+            // Apply correction if difference is significant
+            if (correction_factor - 1.0).abs() > 1e-6 {
+                for cell in self.cells.iter_mut().filter(|c| !c.wall) {
+                    cell.density *= correction_factor;
+                }
+            }
+        }*/
     }
 
     // Project the velocity field to ensure incompressibility
@@ -346,35 +437,184 @@ impl Grid {
     }
 
 
-    pub fn advect_density_cip_csl4(&mut self, dt: f32) {
-        use crate::cip_csl4_v7_2d::advect_cip_csl4_2d;
-        advect_cip_csl4_2d( self, dt, DX, DY, (N + 2.0) as usize);
+
+    /*pub fn project2(&mut self, num_iters: usize, dt: f32, over_relaxation: f32) {
+        let cp = 1.0 * (1.0 / N as f32) / dt; // densité * h / dt, ici densité = 1
+        let h = 1.0 / N as f32;
+
+        for _ in 0..num_iters {
+            let mut updates = Vec::new();
+
+            for (i, j, idx) in self.iter_morton() {
+                if !self.in_bounds(i, j) || self.cells[idx].wall {
+                    continue;
+                }
+
+                let sx0 = if self.in_bounds(i - 1, j) && !self.cells[self.to_index(i - 1, j)].wall { 1.0 } else { 0.0 };
+                let sx1 = if self.in_bounds(i + 1, j) && !self.cells[self.to_index(i + 1, j)].wall { 1.0 } else { 0.0 };
+                let sy0 = if self.in_bounds(i, j - 1) && !self.cells[self.to_index(i, j - 1)].wall { 1.0 } else { 0.0 };
+                let sy1 = if self.in_bounds(i, j + 1) && !self.cells[self.to_index(i, j + 1)].wall { 1.0 } else { 0.0 };
+
+                let s = sx0 + sx1 + sy0 + sy1;
+                if s == 0.0 {
+                    continue;
+                }
+
+                let u_r = self.cells[self.to_index(i + 1, j)].velocity.x;
+                let u_l = self.cells[self.to_index(i, j)].velocity.x;
+                let v_t = self.cells[self.to_index(i, j + 1)].velocity.y;
+                let v_b = self.cells[self.to_index(i, j)].velocity.y;
+
+                let div = u_r - u_l + v_t - v_b;
+
+                let mut p = -div / s;
+                p *= over_relaxation;
+                let dp = cp * p;
+
+                updates.push((i, j, idx, dp, sx0, sx1, sy0, sy1));
+            }
+
+            // Application des mises à jour (en dehors de l'itération de lecture)
+            for (i, j, idx, dp, sx0, sx1, sy0, sy1) in &updates {
+                self.cells[*idx].pressure += *dp;
+
+                if *sx0 != 0.0 {
+                    self.cells[self.to_index(i - 1, *j)].velocity.x -= sx0 * *dp;
+                }
+                if *sx1 != 0.0 {
+                    self.cells[self.to_index(i + 1, *j)].velocity.x += sx1 * *dp;
+                }
+                if *sy0 != 0.0 {
+                    self.cells[self.to_index(*i, j - 1)].velocity.y -= sy0 * *dp;
+                }
+                if *sy1 != 0.0 {
+                    self.cells[self.to_index(*i, j + 1)].velocity.y += sy1 * *dp;
+                }
+            }
+        }
+    }*/
+
+
+
+    // Impose u=0, v=0 in obstacles and walls, constant inflow on the left, outflow (∂/∂x=0) on the right and on the top/bottom
+    pub fn apply_boundary_conditions(&mut self) {
+        let n = N as usize;
+        let len = self.cells.len();
+        // 1) On clone l’état actuel des vitesses
+        let old_vels: Vec<Vector2> = self.cells.iter().map(|c| c.velocity).collect();
+        // 2) On prépare un buffer pour les nouvelles vitesses
+        let mut new_vels = Vec::with_capacity(len);
+
+        for idx in 0..len {
+            let (i, j) = morton_decode(idx);
+            let cell = &self.cells[idx];
+            let v = if cell.wall {
+                // no‑slip
+                Vector2::default()
+            } else if i == 1 {
+                // inflow
+                Vector2 { x: INFLOW_VELOCITY, y: 0.0 }
+            } else if i == n {
+                // outflow : on reprend la vitesse à gauche
+                old_vels[morton_encode(i - 1, j)]
+            } else if j == 1 {
+                // top : ∂u/∂y = 0 ⇒ on prend la cellule du bas
+                old_vels[morton_encode(i, j + 1)]
+            } else if j == n {
+                // bottom : ∂u/∂y = 0 ⇒ on prend la cellule du haut
+                old_vels[morton_encode(i, j - 1)]
+            } else {
+                // pas de BC particulière
+                old_vels[idx]
+            };
+            new_vels.push(v);
+        }
+
+        // 3) On écrit les nouvelles vitesses
+        for (cell, &v) in self.cells.iter_mut().zip(new_vels.iter()) {
+            cell.velocity = v;
+        }
     }
 
 
 
-    // Compute wall forces applied to the cells
-    pub fn compute_wall_forces(&self) -> Vec<Vector2> {
-        self.cells.par_iter().enumerate().map(|(idx, cell)| {
-            if cell.wall {
-                let (x, y) = morton_decode(idx);
-                let mut force = Vector2 { x: 0.0, y: 0.0 };
-                for &(di, dj) in &[(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                    let ni = (x as isize + di) as usize;
-                    let nj = (y as isize + dj) as usize;
-                    let neighbor_idx = morton_encode(ni, nj);
-                    if neighbor_idx < self.cells.len() && !self.cells[neighbor_idx].wall {
-                        let neighbor = &self.cells[neighbor_idx];
-                        let pressure_force = neighbor.pressure;
-                        force.x += pressure_force * di as f32;
-                        force.y += pressure_force * dj as f32;
+
+    pub fn extrapolate(&mut self) {
+        // On suppose que N est la taille logique (hors-bord), donc les bords sont 0 et N+1
+        let n = N as usize;
+
+        // Extrapolation verticale pour u (velocity.x)
+        for i in 1..=n {
+            let y0 = 0;
+            let y1 = 1;
+            if let (Some(i0), Some(i1)) = (self.try_index(i, y0), self.try_index(i, y1)) {
+                if !self.cells[i0].wall && !self.cells[i1].wall {
+                    self.cells[i0].velocity.x = self.cells[i1].velocity.x;
+                }
+            }
+
+            let y0 = n + 1;
+            let y1 = n;
+            if let (Some(i0), Some(i1)) = (self.try_index(i, y0), self.try_index(i, y1)) {
+                if !self.cells[i0].wall && !self.cells[i1].wall {
+                    self.cells[i0].velocity.x = self.cells[i1].velocity.x;
+                }
+            }
+        }
+
+        // Extrapolation horizontale pour v (velocity.y)
+        for j in 1..=n {
+            let x0 = 0;
+            let x1 = 1;
+            if let (Some(i0), Some(i1)) = (self.try_index(x0, j), self.try_index(x1, j)) {
+                if !self.cells[i0].wall && !self.cells[i1].wall {
+                    self.cells[i0].velocity.y = self.cells[i1].velocity.y;
+                }
+            }
+
+            let x0 = n + 1;
+            let x1 = n;
+            if let (Some(i0), Some(i1)) = (self.try_index(x0, j), self.try_index(x1, j)) {
+                if !self.cells[i0].wall && !self.cells[i1].wall {
+                    self.cells[i0].velocity.y = self.cells[i1].velocity.y;
+                }
+            }
+        }
+    }
+
+
+
+
+    // Retourne un vecteur de forces appliquées sur chaque cellule mur par le fluide
+    pub fn compute_wall_forces(&self, h: f32) -> Vec<Vector2> {
+        let mut forces = vec![Vector2::default(); self.cells.len()];
+
+        for (i, j, idx) in self.iter_morton() {
+            if !self.cells[idx].wall {
+                continue;
+            }
+
+            // Pour chaque direction autour de la cellule mur, on regarde s’il y a du fluide
+            let neighbors = [
+                (i.wrapping_sub(1), j, Vector2 { x: -1.0, y: 0.0 }), // gauche
+                (i + 1, j, Vector2 { x: 1.0, y: 0.0 }),              // droite
+                (i, j.wrapping_sub(1), Vector2 { x: 0.0, y: -1.0 }), // bas
+                (i, j + 1, Vector2 { x: 0.0, y: 1.0 }),              // haut
+            ];
+
+            for &(ni, nj, normal) in &neighbors {
+                if let Some(nidx) = self.try_index(ni, nj) {
+                    if !self.cells[nidx].wall {
+                        let p = self.cells[nidx].pressure;
+                        let f = -p * normal; // Force normale
+                        forces[idx].x += f.x * h;
+                        forces[idx].y += f.y * h;
                     }
                 }
-                force
-            } else {
-                Vector2 { x: 0.0, y: 0.0 }
             }
-        }).collect()
+        }
+
+        forces
     }
 
     // Initialize the grid with a given velocity and density
@@ -500,7 +740,7 @@ impl Grid {
 
     pub fn initialize_wind_tunnel(&mut self, density: f32, hole_positions: &[usize]) {
         let left_wall = 1;
-        let box_width = (N as usize / 20).max(2); // Largeur de la boîte (5% de N, minimum 2)
+        let box_width = (N as usize / 30).max(2); // Largeur de la boîte (5% de N, minimum 2)
         let right_wall = left_wall + box_width;
 
         // Créer les murs extérieurs de la boîte
@@ -530,21 +770,82 @@ impl Grid {
     }
 
 
+    pub fn setup_karman_vortex(&mut self) {
+        use crate::conditions::*;
+        let radius = (N as usize / 6) as f32 -10.5 ; // Rayon de l'obstacle
+        let center = ((N as usize + 2) / 6, (N as usize + 2) / 2);
+
+        self.circle(center.0 as isize, center.1 as isize, radius as f32);
+
+        // Écoulement horizontal de gauche à droite avec densité
+        for j in 1..(N as usize + 1) {
+            for i in 1..15 {
+                let idx = self.to_index(i, j);
+                if !self.cells[idx].wall {
+                    self.cells[idx].density = FLOW_DENSITY;
+                    self.cells[idx].velocity = Vector2::new(FLOW_VELOCITY, 0.0);
+                }
+            }
+        }
+
+        println!("✔ Kármán vortex setup complete: central obstacle + inflow.");
+    }
+
+
     // Perform a velocity step in the simulation
     pub fn vel_step(&mut self) {
-        self.diffuse(VISCOSITY, DT);
+        //self.diffuse(VISCOSITY, DT);
         //println!("Total density after diffuse {:2}", self.total_density());
-        self.project();
+        if PROJECT == "1"{
+            self.project();
+        } else if PROJECT == "2"{
+            //self.project2(80, DT, 1.9);
+        }
         //println!("Total density after project {:2}", self.total_density());
         self.advect_velocity(DT);
         //println!("Total density after advect velocity {:2}", self.total_density());
-        if CIP_CSL4 {
-            self.advect_density_cip_csl4(DT);
-        } else {
-            self.advect_density(DT);
-        }
-        println!("Total density after apres advect density {:2}", self.total_density());
-        self.project();
+        self.advect_density(DT);
+        //println!("Total density after apres advect density {:2}", self.total_density());
+        self.apply_boundary_conditions();
     }
+
+    pub fn vel2_step(&mut self) {
+        if PROJECT == "1"{
+            self.project();
+        } else if PROJECT == "2"{
+            //self.project2(80, DT, 1.9);
+        }
+        //println!("Total density after project {:2}", self.total_density());
+        self.extrapolate();
+        //println!("Total density after extrapolate {:2}", self.total_density());
+        self.advect_velocity(DT);
+        //println!("Total density after advect velocity {:2}", self.total_density());
+        self.advect_density(DT);
+        //println!("Total density after apres advect density {:2}", self.total_density());
+    }
+
+
+    pub fn vel_step_cip_csl4(&mut self) {
+        // Diffusion si nécessaire
+        // self.diffuse(VISCOSITY, DT);
+
+        // Projection pour assurer l'incompressibilité
+        if PROJECT == "1"{
+            self.project();
+        } else if PROJECT == "2" {
+            //self.project2(80, DT, 1.9);
+        }
+
+        // Advection de la vitesse
+        self.advect_velocity(DT);
+
+        // Utiliser la méthode CIP-CSL4 au lieu de l'advection standard
+        Self::advect_density_cip_csl4(self, DT);
+
+        // Appliquer les conditions aux limites
+        self.apply_boundary_conditions();
+    }
+
+
 }
 

@@ -1,9 +1,30 @@
 use crate::conditions::*;
 use crate::grid::*;
 use minifb::{Window, WindowOptions};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-// Minifb window parameters
+// Vorticity calculation for colourisation (safe bounds)
+fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
+    let dx = DX as f32;
+    let dy = DY as f32;
+
+    let im = i.saturating_sub(1).min(N as usize);
+    let ip = (i + 1).min(N as usize);
+    let jm = j.saturating_sub(1).min(N as usize);
+    let jp = (j + 1).min(N as usize);
+
+    let idx_up    = grid.to_index(i, jp);
+    let idx_down  = grid.to_index(i, jm);
+    let idx_left  = grid.to_index(im, j);
+    let idx_right = grid.to_index(ip, j);
+
+    let du_dy = (grid.cells[idx_up].velocity.x - grid.cells[idx_down].velocity.x) / (2.0 * dy);
+    let dv_dx = (grid.cells[idx_right].velocity.y - grid.cells[idx_left].velocity.y) / (2.0 * dx);
+
+    dv_dx - du_dy
+}
+
+// Draw a line using Bresenham's algorithm
 fn draw_line(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
     let dx = (x1 as isize - x0 as isize).abs();
     let dy = -(y1 as isize - y0 as isize).abs();
@@ -30,14 +51,21 @@ fn draw_line(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, 
     }
 }
 
-fn force_to_color(force: f32) -> u32 {
-    let intensity = (force.clamp(0.0, 255.0)) as u32;
-    (intensity << 8) | 0x000000 // Color intensity in green
+// Map density to color when not painting vorticity
+fn density_color(density: f32) -> u32 {
+    if density <= 20.0 {
+        let intensity = (255.0 * (1.0 - density / 20.0)).clamp(0.0, 255.0) as u32;
+        (intensity << 16) | (intensity << 8) | 0xFF
+    } else {
+        let excess = (density - 20.0).clamp(0.0, 20.0);
+        let red_intensity = (255.0 * (excess / 20.0)).clamp(0.0, 255.0) as u32;
+        (red_intensity << 16) | 0xFF
+    }
 }
 
-// Launch the simulation and call draw
+// Launch the simulation and rendering
 pub fn run_simulation(grid: &mut Grid, mut step: i32) {
-    let start2 = Instant::now();
+    let start = Instant::now();
     let width = WINDOW_WIDTH;
     let height = WINDOW_HEIGHT;
     let mut buffer: Vec<u32> = vec![0; width * height];
@@ -48,107 +76,118 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
         height,
         WindowOptions::default(),
     )
-        .unwrap_or_else(|e| {
-            panic!("{}", e);
-        });
+        .unwrap_or_else(|e| panic!("{}", e));
 
-    //Steps
-    println!("Steps: {}", step);
+    println!("Starting simulation");
 
+    let n_max = N as usize + 1;
     while window.is_open() {
-        // Erase the buffer
-        for pixel in buffer.iter_mut() {
-            *pixel = 0xFFFFFFFF; // White background
-        }
+        // Clear buffer
+        buffer.fill(0xFFFFFFFF);
 
-        // Draw the grid
-        for j in 0..=(N + 1.0) as usize {
-            for i in 0..=(N + 1.0) as usize {
+        // Draw cells
+        for j in 1..n_max {
+            for i in 1..n_max {
                 let idx = grid.to_index(i, j);
-                let color = if grid.cells[idx].wall {
-                    force_to_color(0.0)
-                } else {
-                    if grid.cells[idx].density == 0.0 {
-                        continue;
-                    }
-                    let density = grid.cells[idx].density;
-                    let pressure = grid.cells[idx].pressure;
-                    if density <= 20.0 {
-                        let intensity = (255.0 * (1.0 - density / 20.0)).clamp(0.0, 255.0) as u32;
-                        (intensity << 16) | (intensity << 8) | 0xFF // Bleu profond pour faible densité
-                    } else {
-                        let excess = (density - 20.0).clamp(0.0, 20.0);
-                        let red_intensity = (255.0 * (excess / 20.0)).clamp(0.0, 255.0) as u32;
-                        (red_intensity << 16) | 0xFF // Tendance au rouge pour densité élevée
-                    }
-                };
+                let x0 = i * DX as usize;
+                let y0 = j * DY as usize;
 
-                let x = i * 2;
-                let y = j * 2;
-                for dy in 0..2 {
-                    for dx in 0..2 {
-                        let buffer_idx = (y + dy) * width + (x + dx);
-                        if buffer_idx < buffer.len() && x + dx < width && y + dy < height {
-                            buffer[buffer_idx] = color;
+                // Draw walls in black
+                if grid.cells[idx].wall {
+                    for dy in 0..DY as usize {
+                        for dx in 0..DX as usize {
+                            buffer[(y0 + dy) * width + (x0 + dx)] = 0x000000;
                         }
                     }
+                    continue;
+                }
+                // Skip empty density
+                if grid.cells[idx].density == 0.0 {
+                    continue;
                 }
 
-                /*
-                // Draw velocity vectors
-                if !grid.cells[idx].wall {
+                // Choose colour based on mode
+                let colour = if PAINT_VORTICITY {
+                    let vort = vorticity(grid, i, j);
+                    let iv = ((vort.abs().min(5.0)) * 25.0) as u32;
+                    if vort > 0.0 {
+                        (iv << 8) | 0x0000FF
+                    } else {
+                        (iv << 16) | 0xFF0000
+                    }
+                } else {
+                    density_color(grid.cells[idx].density)
+                };
+
+                // Fill cell block
+                for dy in 0..DY as usize {
+                    for dx in 0..DX as usize {
+                        buffer[(y0 + dy) * width + (x0 + dx)] = colour;
+                    }
+                }
+
+                // Draw velocity vector
+                if DRAW_VELOCITY_VECTORS {
                     let vx = grid.cells[idx].velocity.x;
                     let vy = grid.cells[idx].velocity.y;
-                    let center_x = x + 10;
-                    let center_y = y + 10;
-                    let end_x = (center_x as f32 + vx * 20.0) as usize;
-                    let end_y = (center_y as f32 + vy * 20.0) as usize;
-                    draw_line(&mut buffer, width, center_x, center_y, end_x, end_y, 0x000000);
+                    let cx = x0 + (DX as usize) / 2;
+                    let cy = y0 + (DY as usize) / 2;
+                    let mag = (vx*vx + vy*vy).sqrt().max(1e-5);
+                    let scale = VECTOR_SIZE_FACTOR / mag;
+                    let ex = (cx as f32 + vx * scale) as usize;
+                    let ey = (cy as f32 + vy * scale) as usize;
+                    draw_line(&mut buffer, width, cx, cy, ex, ey, 0x000000);
                 }
-                */
             }
         }
 
-
-        // Update the window with the buffer
+        // Update window
         window
             .update_with_buffer(&buffer, width, height)
             .expect("Error while updating the window");
 
-
         step += 1;
 
-
-
-
-        // AIRFLOW Gestion
-
+        // Flow injection or custom source
         if AIR_FLOW {
-            let hole_pos: Vec<usize> = (1..=(N as usize)).filter(|&x| x % FLOW_SPACE == 0).collect();
+            let hole_pos: Vec<usize> = (1..=N as usize)
+                .filter(|&x| x % FLOW_SPACE == 0)
+                .collect();
             grid.initialize_wind_tunnel(FLOW_DENSITY, &hole_pos);
-            // Pause
-            //std::thread::sleep(std::time::Duration::from_millis(1000));
         } else {
-           // if step < 10 {
-                Grid::cell_init(grid, 5, 100, 8.0, 0.0, 350.0);
-           // }else {
-                //Pause
-                //std::thread::sleep(std::time::Duration::from_millis(1000));
-           // }
+            /*for i in 0..=N as usize/20+5 {
+                Grid::cell_init(grid, 5, (N as usize)/2+i-15, 0.2, 0.0, 30.0);
+            }*/
+            for i in 0..=50 {
+                Grid::cell_init(grid, 5, (N as usize / 2)+i-25, 0.1, 0.0, 20.0);
+
+                // for karman vortex
+                Grid::velocity_init(grid, 10, (N as usize / 2)+i-25, 1.1, 0.0);
+            }
         }
 
 
-
-
-        // println!("Global density {:2}", grid.total_density());
-        if step == 100 {
-            let duration2 = start2.elapsed();
-            println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour 100 vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", duration2);
+        // Perform simulation step
+        if VEL_STEP == "1" {
+            grid.vel_step();
+        } else if VEL_STEP == "2" {
+            grid.vel2_step();
+        } else if VEL_STEP == "cip_csl4" {
+            grid.vel_step_cip_csl4()
+        } else {
+            panic!("Invalid VEL_STEP value");
         }
 
-
-        // Perform the grid update step
-        grid.vel_step();
-
+        // Optionally print timing
+        if step == 100  {
+            let elapsed = start.elapsed();
+            println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour 100 vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", elapsed);
+        }
+        // Optionally print timing
+        if step == SIM_STEPS as i32 {
+            let elapsed = start.elapsed();
+            println!("§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§ \n Completed {} steps in {:?}\n§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§", SIM_STEPS, elapsed);
+        }
     }
 }
+

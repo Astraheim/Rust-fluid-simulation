@@ -4,10 +4,11 @@ use std::time::Instant;
 use conditions::*;
 use crate::visualization::run_simulation;
 
-mod grid;
-mod conditions;
-mod visualization;
-mod cip_csl4_v7_2d;
+pub mod grid;
+pub mod conditions;
+pub mod visualization;
+pub mod cip_csl4;
+
 
 fn main() {
     let step: i32 = 0;
@@ -29,17 +30,22 @@ fn main() {
 */
 
 
-    Grid::circle(&mut grid, 110, 100, 14.5);
+    //grid.setup_karman_vortex(); // <<< ici on prépare l'expérience
 
-    //Grid::cell_init(&mut grid, 100, 100, 1.0, 1.0, 5000.0);
+    Grid::cell_init(&mut grid, N as usize/5, N as usize/2, 0.0, 0.0, 500.0);
+    Grid::circle(&mut grid, (N as usize / 4) as isize, (N as usize / 2) as isize, (N as usize / 10) as f32 -6.5);
+    run_simulation(&mut grid, 0);
+
+
+
+
+
+
 
 
     println!("Global density {:2}", grid.total_density());
 
-    run_simulation(&mut grid, step);
-
     let duration = start.elapsed();
     println!(" $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$", duration);
-
 }
 
