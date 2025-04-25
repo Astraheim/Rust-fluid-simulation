@@ -3,6 +3,7 @@ use std::vec::Vec;
 use rayon::prelude::*;
 use std::fmt::Write;
 use std::ops::Mul;
+use crate::pressure_computation::*;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector2 {
@@ -26,6 +27,17 @@ pub struct Cell {
 #[derive(Clone, Debug)]
 pub struct Grid {
     pub cells: Vec<Cell>,
+}
+
+
+
+#[derive(Clone, Debug)]
+pub struct ObjectForce {
+    pub id: usize,
+    pub center_of_mass: Vector2,
+    pub total_force: Vector2,
+    pub torque: f32,        // Moment de force
+    pub cell_count: usize,  // Nombre de cellules dans l'objet
 }
 
 
@@ -307,7 +319,9 @@ impl Grid {
         let dt0 = dt * N as f32;
 
         // Save total density before advection
-        //let total_density_before = self.total_density();
+        // let total_density_before = self.total_density();
+
+
 
         // New densities after advection
         let new_densities: Vec<f32> = self.cells.par_iter().enumerate().map(|(idx, cell)| {
@@ -366,18 +380,18 @@ impl Grid {
             self.cells[i].density = new_density;
         }
 
-        // Mass conservation correction (optional)
-        /*let total_density_after = self.total_density();
+        /*// Mass conservation correction (optional)
+        let total_density_after = self.total_density();
         if total_density_after > 0.0 && total_density_before > 0.0 {
             let correction_factor = total_density_before / total_density_after;
-
-            // Apply correction if difference is significant
+                // Apply correction if difference is significan
             if (correction_factor - 1.0).abs() > 1e-6 {
                 for cell in self.cells.iter_mut().filter(|c| !c.wall) {
                     cell.density *= correction_factor;
                 }
             }
         }*/
+
     }
 
     // Project the velocity field to ensure incompressibility
@@ -585,38 +599,6 @@ impl Grid {
 
 
 
-    // Retourne un vecteur de forces appliquées sur chaque cellule mur par le fluide
-    pub fn compute_wall_forces(&self, h: f32) -> Vec<Vector2> {
-        let mut forces = vec![Vector2::default(); self.cells.len()];
-
-        for (i, j, idx) in self.iter_morton() {
-            if !self.cells[idx].wall {
-                continue;
-            }
-
-            // Pour chaque direction autour de la cellule mur, on regarde s’il y a du fluide
-            let neighbors = [
-                (i.wrapping_sub(1), j, Vector2 { x: -1.0, y: 0.0 }), // gauche
-                (i + 1, j, Vector2 { x: 1.0, y: 0.0 }),              // droite
-                (i, j.wrapping_sub(1), Vector2 { x: 0.0, y: -1.0 }), // bas
-                (i, j + 1, Vector2 { x: 0.0, y: 1.0 }),              // haut
-            ];
-
-            for &(ni, nj, normal) in &neighbors {
-                if let Some(nidx) = self.try_index(ni, nj) {
-                    if !self.cells[nidx].wall {
-                        let p = self.cells[nidx].pressure;
-                        let f = -p * normal; // Force normale
-                        forces[idx].x += f.x * h;
-                        forces[idx].y += f.y * h;
-                    }
-                }
-            }
-        }
-
-        forces
-    }
-
     // Initialize the grid with a given velocity and density
     pub fn cell_init(&mut self, line: usize, column: usize, vx: f32, vy: f32, density: f32) {
         if line <= (N + 1.0) as usize && column <= (N + 1.0) as usize {
@@ -659,6 +641,69 @@ impl Grid {
             println!("Error: indices out of bounds!");
         }
     }
+
+
+    // Ajoute une source circulaire de densité et de vitesse au centre de la grille
+    pub fn center_source(&mut self, radius: f32, density_value: f32, velocity_magnitude: f32, is_radial: bool) {
+        // Calculer le centre de la grille
+        let center_x = (N / 2.0) as usize;
+        let center_y = (N / 2.0) as usize;
+
+        // Parcourir toutes les cellules dans un carré englobant le cercle
+        let r_int = radius.floor() as usize;
+        let start_i = if center_x > r_int { center_x - r_int } else { 1 };
+        let end_i = (center_x + r_int).min(N as usize);
+        let start_j = if center_y > r_int { center_y - r_int } else { 1 };
+        let end_j = (center_y + r_int).min(N as usize);
+
+        for i in start_i..=end_i {
+            for j in start_j..=end_j {
+                // Calculer la distance au centre
+                let dx = i as f32 - center_x as f32;
+                let dy = j as f32 - center_y as f32;
+                let distance_squared = dx * dx + dy * dy;
+
+                // Si la cellule est dans le cercle et n'est pas un mur
+                if distance_squared <= radius * radius {
+                    let idx = self.to_index(i, j);
+                    if !self.cells[idx].wall {
+                        // Ajouter de la densité
+                        self.cells[idx].density += density_value;
+
+                        // Calculer la direction de la vitesse
+                        if is_radial {
+                            // Vitesse radiale (vers l'extérieur depuis le centre)
+                            if distance_squared > 0.0 {
+                                let distance = distance_squared.sqrt();
+                                let dir_x = dx / distance;
+                                let dir_y = dy / distance;
+
+                                // Ajouter la vitesse (diminuant avec la distance du centre)
+                                let factor = 1.0 - (distance / radius); // Plus fort au centre
+                                self.cells[idx].velocity.x += dir_x * velocity_magnitude * factor;
+                                self.cells[idx].velocity.y += dir_y * velocity_magnitude * factor;
+                            }
+                        } else {
+                            // Vitesse circulaire (tourbillon)
+                            if distance_squared > 0.0 {
+                                let distance = distance_squared.sqrt();
+                                // Direction perpendiculaire (pour rotation)
+                                let dir_x = -dy / distance;
+                                let dir_y = dx / distance;
+
+                                // Vitesse augmentant avec la distance jusqu'à un certain point
+                                let factor = (distance / radius) * (1.0 - distance / radius) * 4.0; // Max au milieu
+                                self.cells[idx].velocity.x += dir_x * velocity_magnitude * factor;
+                                self.cells[idx].velocity.y += dir_y * velocity_magnitude * factor;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
 
     // Print the grid with walls
     pub fn print_grid_walls(&self) {
@@ -848,4 +893,6 @@ impl Grid {
 
 
 }
+
+
 

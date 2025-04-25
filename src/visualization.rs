@@ -2,6 +2,7 @@ use crate::conditions::*;
 use crate::grid::*;
 use minifb::{Window, WindowOptions};
 use std::time::Instant;
+use crate::pressure_computation::*;
 
 // Vorticity calculation for colourisation (safe bounds)
 fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
@@ -154,16 +155,15 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 .filter(|&x| x % FLOW_SPACE == 0)
                 .collect();
             grid.initialize_wind_tunnel(FLOW_DENSITY, &hole_pos);
-        } else {
-            /*for i in 0..=N as usize/20+5 {
-                Grid::cell_init(grid, 5, (N as usize)/2+i-15, 0.2, 0.0, 30.0);
-            }*/
+        } else if KARMAN_VORTEX {
             for i in 0..=50 {
-                Grid::cell_init(grid, 5, (N as usize / 2)+i-25, 0.1, 0.0, 20.0);
+                Grid::cell_init(grid, 5, 127+i-25, 0.3, 0.0, 20.0);
 
                 // for karman vortex
-                Grid::velocity_init(grid, 10, (N as usize / 2)+i-25, 1.1, 0.0);
+                Grid::velocity_init(grid, 10, 127+i-25, 0.9, 0.0);
             }
+        } else if CENTER_SOURCE {
+            grid.center_source(CENTER_SOURCE_RADIUS, CENTER_SOURCE_DENSITY, CENTER_SOURCE_VELOCITY, CENTER_SOURCE_TYPE);
         }
 
 
@@ -176,6 +176,11 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             grid.vel_step_cip_csl4()
         } else {
             panic!("Invalid VEL_STEP value");
+        }
+
+
+        if PRINT_FORCES {
+            grid.print_object_forces()
         }
 
         // Optionally print timing
