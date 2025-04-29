@@ -180,7 +180,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 }
             }
         } else {
-            // Mouse is realeased
+            // Mouse is released
             if mouse_down {
                 mouse_down = false;
                 last_grid_pos = None;
