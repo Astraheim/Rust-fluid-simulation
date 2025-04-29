@@ -35,8 +35,8 @@ pub struct ObjectForce {
     pub id: usize,
     pub center_of_mass: Vector2,
     pub total_force: Vector2,
-    pub torque: f32,        // Moment de force
-    pub cell_count: usize,  // Nombre de cellules dans l'objet
+    pub torque: f32,
+    pub cell_count: usize,
 }
 
 
@@ -67,19 +67,22 @@ impl Mul<Vector2> for f32 {
 
 impl Vector2 {
 
-    // Return vector magnitude
+    /// Return vector magnitude
     pub fn magnitude(&self) -> f32 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
 
+    /// Create a new vector
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 
-    pub fn length(&self) -> f32 {
+    /// Exactly the same as magnitude, returns vector magnitude
+        pub fn length(&self) -> f32 {
         (self.x * self.x + self.y * self.y).sqrt()
     }
 
+    /// Create a new vector with the same direction but normalized
     pub fn normalize(&self) -> Self {
         let len = self.length();
         if len == 0.0 {
@@ -91,17 +94,17 @@ impl Vector2 {
 }
 
 
-// Encode Morton coordinates (x, y) into a single index
+/// Encode Morton coordinates (x, y) into a single index
 fn morton_encode(x: usize, y: usize) -> usize {
     part1by1(x) | (part1by1(y) << 1)
 }
 
-// Decode Morton index into coordinates (x, y)
+/// Decode Morton index into coordinates (x, y)
 fn morton_decode(z: usize) -> (usize, usize) {
     (compact1by1(z), compact1by1(z >> 1))
 }
 
-// Interleave bits of x and y (morton_encode)
+/// Interleave bits of x and y (morton_encode)
 fn part1by1(mut n: usize) -> usize {
     n &= 0x0000ffff;
     n = (n | (n << 8)) & 0x00ff00ff;
@@ -111,7 +114,7 @@ fn part1by1(mut n: usize) -> usize {
     n
 }
 
-// Compact bits of n into a single number (morton_decode)
+/// Compact bits of n into a single number (morton_decode)
 fn compact1by1(mut n: usize) -> usize {
     n &= 0x55555555;
     n = (n | (n >> 1)) & 0x33333333;
@@ -123,22 +126,22 @@ fn compact1by1(mut n: usize) -> usize {
 
 impl Grid {
 
-    // Check if the coordinates (i, j) are within the grid bounds
+    /// Check if the coordinates (i, j) are within the grid bounds
     pub fn in_bounds(&self, i: usize, j: usize) -> bool {
         i >= 1 && i <= N as usize && j >= 1 && j <= N as usize
     }
 
-    // Encoding to morton index
+    /// Encoding to morton index
     pub fn to_index(&self, i: usize, j: usize) -> usize {
         morton_encode(i, j)
     }
 
-    // Return the coordinates (i, j) from the morton index
+    /// Return the coordinates (i, j) from the morton index
     pub fn decode_index(&self, idx: usize) -> (usize, usize) {
         morton_decode(idx)
     }
 
-    // Return Some(idx) if the index is valid, otherwise None
+    /// Return Some(idx) if the index is valid, otherwise None
     pub fn try_index(&self, i: usize, j: usize) -> Option<usize> {
         let idx = self.to_index(i, j);
         if idx < self.cells.len() {
@@ -148,7 +151,7 @@ impl Grid {
         }
     }
 
-    // Itère sur toutes les cellules dans l'ordre de Morton.
+    /// Iterate on every cell in Morton order
     pub fn iter_morton(&self) -> impl Iterator<Item = (usize, usize, usize)> + '_ {
         self.cells
             .iter()
@@ -159,19 +162,8 @@ impl Grid {
             })
     }
 
-    // Version parallèle avec Rayon.
-    pub fn iter_morton_par(&self) -> impl ParallelIterator<Item = (usize, usize, usize)> + '_ {
-        use rayon::prelude::*;
-        self.cells
-            .par_iter()
-            .enumerate()
-            .map(move |(idx, _)| {
-                let (i, j) = self.decode_index(idx);
-                (i, j, idx)
-            })
-    }
 
-    // Create a new grid with the specified size (with wall if EXT_BORDER is enabled)
+    /// Create a new grid with the specified size (with wall if EXT_BORDER is enabled)
     pub fn new() -> Self {
         let mut grid = Self {
             cells: vec![Cell::default(); SIZE as usize],
@@ -197,14 +189,14 @@ impl Grid {
         grid
     }
 
-    // Adds a source to the pressure of the cells
+    /// Adds a source to the pressure of the cells
     pub fn add_source(&mut self, source: &[f32], dt: f32) {
         self.cells.par_iter_mut().enumerate().for_each(|(i, cell)| {
             cell.pressure += dt * source[i];
         });
     }
 
-    // Diffuse density in the grid
+    /// Diffuse density in the grid
     pub fn diffuse(&mut self, diff: f32, dt: f32) {
         let a = dt * diff * (N * N) ;
         let mut new_density = vec![0.0; self.cells.len()];
@@ -216,7 +208,7 @@ impl Grid {
                 .for_each(|(idx, (new_cell, cell))| {
                     let (x, y) = morton_decode(idx);
                     if cell.wall {
-                        *new_cell = cell.density; // Les murs conservent leur densité
+                        *new_cell = cell.density; // Conservation of density in walls
                         return;
                     }
 
@@ -232,7 +224,6 @@ impl Grid {
                                 sum += self.cells[n_idx].density;
                                 count += 1;
                             } else {
-                                // Réflexion ou contribution des murs
                                 sum += cell.density;
                                 count += 1;
                             }
@@ -244,14 +235,14 @@ impl Grid {
                     }
                 });
 
-            // Mise à jour des densités
+            // Update densities
             for (cell, &new_dens) in self.cells.iter_mut().zip(new_density.iter()) {
                 cell.density = new_dens;
             }
         }
     }
 
-    // Advect the velocity of the cells in the grid
+    /// Advect the velocity of the cells in the grid
     pub fn advect_velocity(&mut self, dt: f32) {
         let dt0 = dt * N ;
         let mut new_velocities = vec![[0.0; 2]; self.cells.len()];
@@ -299,13 +290,13 @@ impl Grid {
         });
     }
 
-    // Calcul de la moyenne de la vitesse verticale v entre deux cellules adjacentes (cellules voisines)
+    /// Process average vertical velocity
     fn avg_v(&self, i: usize, j: usize) -> f32 {
         let n = N + 1.0 ;
         0.5 * (self.cells[i * n as usize + j].velocity.y + self.cells[i * n as usize + j + 1].velocity.y)
     }
 
-    // Calcul de la moyenne de la vitesse horizontale u entre deux cellules adjacentes (cellules voisines)
+    /// Process average horizontal velocity
     fn avg_u(&self, i: usize, j: usize) -> f32 {
         let n = N;
         0.5 * (self.cells[i * n as usize + j].velocity.x + self.cells[(i + 1) * n as usize + j].velocity.x)
@@ -313,7 +304,7 @@ impl Grid {
 
 
 
-    // Advect density in the grid
+    /// Advect density in the grid
     pub fn advect_density(&mut self, dt: f32) {
         let dt0 = dt * N ;
 
@@ -393,7 +384,7 @@ impl Grid {
 
     }
 
-    // Project the velocity field to ensure incompressibility
+    /// Project the velocity field to ensure incompressibility
     pub fn project(&mut self) {
         let h = 1.0 / N ;
         let mut pressure = vec![0.0; SIZE as usize];
@@ -450,7 +441,7 @@ impl Grid {
     }
 
 
-
+    /// Project the velocity field to ensure incompressibility (alternative method)
     /*pub fn project2(&mut self, num_iters: usize, dt: f32, over_relaxation: f32) {
         let cp = 1.0 * (1.0 / N as f32) / dt; // densité * h / dt, ici densité = 1
         let h = 1.0 / N as f32;
@@ -487,7 +478,7 @@ impl Grid {
                 updates.push((i, j, idx, dp, sx0, sx1, sy0, sy1));
             }
 
-            // Application des mises à jour (en dehors de l'itération de lecture)
+            // Updates
             for (i, j, idx, dp, sx0, sx1, sy0, sy1) in &updates {
                 self.cells[*idx].pressure += *dp;
 
@@ -509,13 +500,12 @@ impl Grid {
 
 
 
-    // Impose u=0, v=0 in obstacles and walls, constant inflow on the left, outflow (∂/∂x=0) on the right and on the top/bottom
+    /// Impose u=0, v=0 in obstacles and walls, constant inflow on the left, outflow (∂/∂x=0) on the right and on the top/bottom
     pub fn apply_boundary_conditions(&mut self) {
         let n = N as usize;
         let len = self.cells.len();
-        // 1) On clone l’état actuel des vitesses
+        // Clone the velocity vector for the current state
         let old_vels: Vec<Vector2> = self.cells.iter().map(|c| c.velocity).collect();
-        // 2) On prépare un buffer pour les nouvelles vitesses
         let mut new_vels = Vec::with_capacity(len);
 
         for idx in 0..len {
@@ -528,22 +518,22 @@ impl Grid {
                 // inflow
                 Vector2 { x: INFLOW_VELOCITY, y: 0.0 }
             } else if i == n {
-                // outflow : on reprend la vitesse à gauche
+                // outflow
                 old_vels[morton_encode(i - 1, j)]
             } else if j == 1 {
-                // top : ∂u/∂y = 0 ⇒ on prend la cellule du bas
+                // top : ∂u/∂y = 0
                 old_vels[morton_encode(i, j + 1)]
             } else if j == n {
-                // bottom : ∂u/∂y = 0 ⇒ on prend la cellule du haut
+                // bottom : ∂u/∂y = 0
                 old_vels[morton_encode(i, j - 1)]
             } else {
-                // pas de BC particulière
+                // no special boundary condition
                 old_vels[idx]
             };
             new_vels.push(v);
         }
 
-        // 3) On écrit les nouvelles vitesses
+        // Update the velocity field
         for (cell, &v) in self.cells.iter_mut().zip(new_vels.iter()) {
             cell.velocity = v;
         }
@@ -551,12 +541,11 @@ impl Grid {
 
 
 
-
+    /// Extrapolate the velocity field at the boundaries
     pub fn extrapolate(&mut self) {
-        // On suppose que N est la taille logique (hors-bord), donc les bords sont 0 et N+1.
         let n = N as usize;
 
-        // Extrapolation verticale pour u (velocity.x)
+        // Vertical u extrapolation
         for i in 1..=n {
             let y0 = 0;
             let y1 = 1;
@@ -575,7 +564,7 @@ impl Grid {
             }
         }
 
-        // Extrapolation horizontale pour v (velocity.y)
+        // Horizontal v extrapolation
         for j in 1..=n {
             let x0 = 0;
             let x1 = 1;
@@ -598,7 +587,7 @@ impl Grid {
 
 
 
-    // Initialize the grid with a given velocity and density
+    /// Initialize the grid with a given velocity and density
     pub fn cell_init(&mut self, line: usize, column: usize, vx: f32, vy: f32, density: f32) {
         if line <= (N + 1.0) as usize && column <= (N + 1.0) as usize {
             let idx = self.to_index(line, column);
@@ -613,7 +602,7 @@ impl Grid {
         }
     }
 
-    // Initialize the wall character of a cell
+    /// Initialize the wall character of a cell
     pub fn wall_init(&mut self, line: usize, column: usize, wall: bool) {
         if line <= (N + 1.0) as usize && column <= (N + 1.0) as usize {
             let idx = self.to_index(column, line);
@@ -627,7 +616,7 @@ impl Grid {
         }
     }
 
-    // Initialize the velocity of a cell
+    /// Initialize the velocity of a cell
     pub fn velocity_init(&mut self, line: usize, column: usize, vx: f32, vy: f32) {
         if line <= (N + 1.0) as usize && column <= (N + 1.0) as usize {
             let idx = self.to_index(line, column);
@@ -642,13 +631,13 @@ impl Grid {
     }
 
 
-    // Ajoute une source circulaire de densité et de vitesse au centre de la grille
+    /// Add a circular density and velocity source in the middle of the grid
     pub fn center_source(&mut self, radius: f32, density_value: f32, velocity_magnitude: f32, is_radial: bool) {
-        // Calculer le centre de la grille
+        // Process the center of the grid
         let center_x = (N / 2.0) as usize;
         let center_y = (N / 2.0) as usize;
 
-        // Parcourir toutes les cellules dans un carré englobant le cercle
+        // Scan every cell in the inscribed square of the circle
         let r_int = radius.floor() as usize;
         let start_i = if center_x > r_int { center_x - r_int } else { 1 };
         let end_i = (center_x + r_int).min(N as usize);
@@ -657,41 +646,40 @@ impl Grid {
 
         for i in start_i..=end_i {
             for j in start_j..=end_j {
-                // Calculer la distance au centre
+                // Compute the distance from the center
                 let dx = i as f32 - center_x as f32;
                 let dy = j as f32 - center_y as f32;
                 let distance_squared = dx * dx + dy * dy;
 
-                // Si la cellule est dans le cercle et n'est pas un mur
+                // If current cell is not a wall
                 if distance_squared <= radius * radius {
                     let idx = self.to_index(i, j);
                     if !self.cells[idx].wall {
-                        // Ajouter de la densité
+                        // Add density
                         self.cells[idx].density += density_value;
 
-                        // Calculer la direction de la vitesse
+                        // Compute velocity direction
                         if is_radial {
-                            // Vitesse radiale (vers l'extérieur depuis le centre)
+                            // Initialise radial velocity
                             if distance_squared > 0.0 {
                                 let distance = distance_squared.sqrt();
                                 let dir_x = dx / distance;
                                 let dir_y = dy / distance;
 
-                                // Ajouter la vitesse (diminuant avec la distance du centre)
+                                // Add velocity in the direction of the center
                                 let factor = 1.0 - (distance / radius); // Plus fort au centre
                                 self.cells[idx].velocity.x += dir_x * velocity_magnitude * factor;
                                 self.cells[idx].velocity.y += dir_y * velocity_magnitude * factor;
                             }
                         } else {
-                            // Vitesse circulaire (tourbillon)
+                            // Circular velocity (whirlwind)
                             if distance_squared > 0.0 {
                                 let distance = distance_squared.sqrt();
-                                // Direction perpendiculaire (pour rotation)
                                 let dir_x = -dy / distance;
                                 let dir_y = dx / distance;
 
-                                // Vitesse augmentant avec la distance jusqu'à un certain point
-                                let factor = (distance / radius) * (1.0 - distance / radius) * 4.0; // Max au milieu
+                                // Velocity increases with distance from the center up to a certain point
+                                let factor = (distance / radius) * (1.0 - distance / radius) * 4.0;
                                 self.cells[idx].velocity.x += dir_x * velocity_magnitude * factor;
                                 self.cells[idx].velocity.y += dir_y * velocity_magnitude * factor;
                             }
@@ -704,7 +692,7 @@ impl Grid {
 
 
 
-    // Print the grid with walls
+    /// Print the grid with walls
     pub fn print_grid_walls(&self) {
         let lines: Vec<String> = (0..=(N + 1.0) as usize).into_par_iter().map(|j| {
             let mut line = String::with_capacity(((N + 2.0) as usize) * 3);
@@ -721,7 +709,7 @@ impl Grid {
         }
     }
 
-    // Print the grid with velocities
+    /// Print the grid with velocities
     pub fn print_grid_velocity(&self) {
         let lines: Vec<String> = (0..=(N + 1.0) as usize).into_par_iter().map(|j| {
             let mut line = String::with_capacity(((N + 2.0) as usize) * 18);
@@ -743,7 +731,7 @@ impl Grid {
         }
     }
 
-    // Print the grid with densities
+    /// Print the grid with densities
     pub fn print_grid_density(&self) {
         let output: String = (0..=(N + 1.0) as usize).into_par_iter().map(|j| {
             let mut line = String::with_capacity(((N + 2.0) as usize) * 10);
@@ -762,12 +750,12 @@ impl Grid {
         print!("{output}");
     }
 
-    // Compute the total density of the grid
+    /// Compute the total density of the grid
     pub fn total_density(&self) -> f32 {
         self.cells.iter().map(|cell| cell.density).sum()
     }
 
-    // Create a circle in the grid
+    /// Create a circle in the grid
     pub fn circle(&mut self, center_x: isize, center_y: isize, radius: f32) {
         let center_x = center_x as usize;
         let center_y = center_y as usize;
@@ -782,31 +770,33 @@ impl Grid {
         }
     }
 
+
+    /// Create a wind tunnel like setup to test as in wind tunnel experiments
     pub fn initialize_wind_tunnel(&mut self, density: f32, hole_positions: &[usize]) {
         let left_wall = 1;
-        let box_width = (N as usize / 30).max(2); // Largeur de la boîte (5% de N, minimum 2)
+        let box_width = (N as usize / 30).max(2); // Width of the box
         let right_wall = left_wall + box_width;
 
-        // Créer les murs extérieurs de la boîte
+        // Create the walls
         for j in 1..=N as usize {
             let idx_left = self.to_index(left_wall, j);
             if !self.cells[idx_left].wall {
-                self.wall_init(j, left_wall, true); // Mur gauche
+                self.wall_init(j, left_wall, true); // Left wall
             }
 
             if !hole_positions.contains(&j) {
                 let idx_right = self.to_index(right_wall, j);
                 if !self.cells[idx_right].wall {
-                    self.wall_init(j, right_wall, true); // Mur droit, sauf aux trous
+                    self.wall_init(j, right_wall, true); // Right wall, except for holes
                 }
             }
         }
 
-        // Ajouter une densité élevée dans la boîte
+        // Add density in the box
         for i in (left_wall + 2)..=right_wall - 5 {
             for j in 2..=N as usize - 1 {
                 let idx = self.to_index(i, j);
-                if !self.cells[idx].wall { // Vérifie que ce n'est pas un mur
+                if !self.cells[idx].wall { // Ensure this is not a wall
                     self.cell_init(i, j, FLOW_VELOCITY, 0.0, density);
                 }
             }
@@ -814,14 +804,16 @@ impl Grid {
     }
 
 
+
+    /// Attempt to create karman vortex formation favorable conditions
     pub fn setup_karman_vortex(&mut self) {
         use crate::conditions::*;
-        let radius = (N as usize / 6) as f32 -10.5 ; // Rayon de l'obstacle
+        let radius = (N as usize / 6) as f32 -10.5 ; // Obstacle radius
         let center = ((N as usize + 2) / 6, (N as usize + 2) / 2);
 
         self.circle(center.0 as isize, center.1 as isize, radius);
 
-        // Écoulement horizontal de gauche à droite avec densité
+        // Horizontal flow
         for j in 1..(N as usize + 1) {
             for i in 1..15 {
                 let idx = self.to_index(i, j);
@@ -836,7 +828,7 @@ impl Grid {
     }
 
 
-    // Perform a velocity step in the simulation
+    /// Perform a step in the simulation
     pub fn vel_step(&mut self) {
         //self.diffuse(VISCOSITY, DT);
         //println!("Total density after diffuse {:2}", self.total_density());
@@ -853,6 +845,9 @@ impl Grid {
         self.apply_boundary_conditions();
     }
 
+
+
+    /// Perform a step in the simulation with another method
     pub fn vel2_step(&mut self) {
         if PROJECT == "1"{
             self.project();
@@ -869,24 +864,26 @@ impl Grid {
     }
 
 
+
+    /// Perform a step in the simulation with cip-csl4 method (not working)
     pub fn vel_step_cip_csl4(&mut self) {
-        // Diffusion si nécessaire
+        // Diffusion only if needed
         // self.diffuse(VISCOSITY, DT);
 
-        // Projection pour assurer l'incompressibilité
+        // Projection to ensure incompressibility
         if PROJECT == "1"{
             self.project();
         } else if PROJECT == "2" {
             //self.project2(80, DT, 1.9);
         }
 
-        // Advection de la vitesse
+        // Velocity advection
         self.advect_velocity(DT);
 
-        // Utiliser la méthode CIP-CSL4 au lieu de l'advection standard
+        // Use CIP-CSL4 method over other ones
         Self::advect_density_cip_csl4(self, DT);
 
-        // Appliquer les conditions aux limites
+        // Apply boundary conditions
         self.apply_boundary_conditions();
     }
 

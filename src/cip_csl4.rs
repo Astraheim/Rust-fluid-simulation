@@ -1,5 +1,6 @@
 use crate::conditions::*;
-use crate::grid::{Grid, Vector2, Cell};
+use crate::grid::{Grid, Vector2};
+
 
 /*
 FR :
@@ -39,38 +40,39 @@ ENG :
 
 */
 
-impl Grid {
-    // Méthode CIP-CSL4 pour l'advection de la densité
-    pub fn advect_density_cip_csl4(&mut self, dt: f32) {
-        let dt0 = dt * N as f32;
 
-        // Temporaires pour stocker les résultats intermédiaires
+impl Grid {
+    // CIP-CSL4 method for density advection
+    pub fn advect_density_cip_csl4(&mut self, dt: f32) {
+        let dt0 = dt * N;
+
+        // Temporary variables to store intermediate results
         let mut a_coeffs = vec![Vector2::default(); self.cells.len()];
         let mut b_coeffs = vec![Vector2::default(); self.cells.len()];
         let mut c_coeffs = vec![Vector2::default(); self.cells.len()];
-        let mut dr = vec![0.0; self.cells.len()]; // Flux traversant les faces
-        let mut cell_masses = vec![0.0; self.cells.len()]; // Masse des cellules
+        let mut dr = vec![0.0; self.cells.len()]; // Flux across cell faces
+        let mut cell_masses = vec![0.0; self.cells.len()]; // Cell masses
 
-        // Calculer les masses initiales des cellules
-        // Pour la densité, la masse est densité * volume de la cellule (ici 1.0 / (N*N))
-        let cell_volume = 1.0 / (N * N) as f32;
+        // Compute the initial masses of the cells
+        // For density, mass is density * cell volume (here 1.0 / (N*N))
+        let cell_volume = 1.0 / (N * N);
 
-        // Initialiser les masses des cellules
+        // Initialize cell masses
         for idx in 0..self.cells.len() {
             cell_masses[idx] = self.cells[idx].density * cell_volume;
         }
 
-        // Calculer les gradients de densité (1er ordre)
+        // Compute density gradients (1st order)
         self.compute_density_gradients();
 
-        // Collecter les données nécessaires pour le calcul des coefficients
+        // Collect necessary data for coefficient computation
         let mut cells_to_process = Vec::new();
         for (i, j, idx) in self.iter_morton() {
             if !self.in_bounds(i, j) || self.cells[idx].wall {
                 continue;
             }
 
-            // Déterminer la cellule "upwind" basée sur la direction de la vitesse
+            // Determine the "upwind" cell based on velocity direction
             let vx = self.cells[idx].velocity.x;
             let vy = self.cells[idx].velocity.y;
 
@@ -80,7 +82,7 @@ impl Grid {
             let i_up = (i as isize - sign_x) as usize;
             let j_up = (j as isize - sign_y) as usize;
 
-            // Vérifier que la cellule upwind est dans les limites
+            // Check if the upwind cell is within bounds
             if !self.in_bounds(i_up, j_up) {
                 continue;
             }
@@ -93,9 +95,9 @@ impl Grid {
             cells_to_process.push((i, j, idx, i_up, j_up, idx_up));
         }
 
-        // Calculer les coefficients et flux
+        // Compute coefficients and fluxes
         for &(i, j, idx, i_up, j_up, idx_up) in &cells_to_process {
-            // Récupérer les données des cellules
+            // Retrieve cell data
             let vx = self.cells[idx].velocity.x;
             let vy = self.cells[idx].velocity.y;
             let u_i = self.cells[idx].density;
@@ -106,11 +108,11 @@ impl Grid {
             let du_up_y = self.cells[idx_up].density_y;
             let r_c = cell_masses[idx];
 
-            // Déplacement spatial (caractéristique)
+            // Spatial displacement (characteristic)
             let e_x = -vx * dt0;
             let e_y = -vy * dt0;
 
-            // Carré, cube, etc. du déplacement
+            // Square, cube, etc., of the displacement
             let e2_x = e_x * e_x;
             let e3_x = e_x * e2_x;
             let e4_x = e_x * e3_x;
@@ -121,8 +123,8 @@ impl Grid {
             let e4_y = e_y * e3_y;
             let e5_y = e_y * e4_y;
 
-            // Distance à la cellule upwind
-            let dx_i = 1.0 / N as f32; // Distance entre les cellules
+            // Distance to the upwind cell
+            let dx_i = 1.0 / N; // Distance between cells
             let dx5 = dx_i.powi(5);
             let dx4 = dx_i.powi(4);
             let dx3 = dx_i.powi(3);
@@ -131,7 +133,7 @@ impl Grid {
             let v_sgn_x = if vx >= 0.0 { 1.0 } else { -1.0 };
             let v_sgn_y = if vy >= 0.0 { 1.0 } else { -1.0 };
 
-            // Calcul des coefficients pour la direction X
+            // Compute coefficients for the X direction
             a_coeffs[idx].x = (-2.5 / dx5) * (6.0 * (u_up + u_i) * dx_i
                 - (du_up_x - du_i_x) * dx2
                 + 12.0 * v_sgn_x * r_c);
@@ -144,7 +146,7 @@ impl Grid {
                 - (du_up_x - 3.0 * du_i_x) * dx2
                 + 20.0 * v_sgn_x * r_c);
 
-            // Calcul des coefficients pour la direction Y
+            // Compute coefficients for the Y direction
             a_coeffs[idx].y = (-2.5 / dx5) * (6.0 * (u_up + u_i) * dx_i
                 - (du_up_y - du_i_y) * dx2
                 + 12.0 * v_sgn_y * r_c);
@@ -157,7 +159,7 @@ impl Grid {
                 - (du_up_y - 3.0 * du_i_y) * dx2
                 + 20.0 * v_sgn_y * r_c);
 
-            // Calcul du flux traversant les faces (composante X)
+            // Compute flux across faces (X component)
             dr[idx] = -1.0 * (
                 e5_x * a_coeffs[idx].x / 5.0 +
                     e4_x * b_coeffs[idx].x / 4.0 +
@@ -166,7 +168,7 @@ impl Grid {
                     e_x * u_i
             );
 
-            // Ajout de la composante Y au flux
+            // Add Y component to the flux
             dr[idx] += -1.0 * (
                 e5_y * a_coeffs[idx].y / 5.0 +
                     e4_y * b_coeffs[idx].y / 4.0 +
@@ -176,20 +178,20 @@ impl Grid {
             );
         }
 
-        // Collecter les informations pour la mise à jour des masses
+        // Collect information for mass updates
         let mut mass_updates = Vec::new();
         for (i, j, idx) in self.iter_morton() {
             if !self.in_bounds(i, j) || self.cells[idx].wall {
                 continue;
             }
 
-            // Calculer les indices des cellules adjacentes
+            // Compute indices of adjacent cells
             let idx_right = if i < N as usize { self.to_index(i + 1, j) } else { idx };
             let idx_top = if j < N as usize { self.to_index(i, j + 1) } else { idx };
 
             let mut delta_mass = 0.0;
 
-            // Mise à jour de la masse en utilisant les flux entrants et sortants
+            // Update mass using incoming and outgoing fluxes
             if idx_right < self.cells.len() && !self.cells[idx_right].wall {
                 delta_mass += dr[idx] - dr[idx_right];
             }
@@ -201,50 +203,32 @@ impl Grid {
             mass_updates.push((idx, delta_mass));
         }
 
-        // Appliquer les mises à jour des masses
+        // Apply mass updates
         for (idx, delta_mass) in mass_updates {
             cell_masses[idx] += delta_mass;
         }
 
-        // Collecter les données pour la mise à jour des densités et dérivées
+        // Collect data for density and derivative updates
         let mut density_updates = Vec::new();
         for (i, j, idx) in self.iter_morton() {
             if !self.in_bounds(i, j) || self.cells[idx].wall {
                 continue;
             }
 
-            // Déplacement spatial (caractéristique)
+            // Spatial displacement (characteristic)
             let vx = self.cells[idx].velocity.x;
             let vy = self.cells[idx].velocity.y;
             let e_x = -vx * dt0;
             let e_y = -vy * dt0;
 
-            // Puissances du déplacement
+            // Powers of the displacement
             let e2_x = e_x * e_x;
             let e3_x = e_x * e2_x;
-            let e4_x = e_x * e3_x;
 
             let e2_y = e_y * e_y;
             let e3_y = e_y * e2_y;
-            let e4_y = e_y * e3_y;
-
-            // Interpolation de la fonction au point caractéristique
-            let density_x = a_coeffs[idx].x * e4_x +
-                b_coeffs[idx].x * e3_x +
-                c_coeffs[idx].x * e2_x +
-                self.cells[idx].density_x * e_x +
-                self.cells[idx].density;
-
-            let density_y = a_coeffs[idx].y * e4_y +
-                b_coeffs[idx].y * e3_y +
-                c_coeffs[idx].y * e2_y +
-                self.cells[idx].density_y * e_y +
-                self.cells[idx].density;
-
-            // Moyenne des deux directions pour la densité finale
-            let final_density = 0.5 * (density_x + density_y);
-
-            // Calcul des nouvelles dérivées
+            
+            // Compute new derivatives
             let new_density_x = 4.0 * a_coeffs[idx].x * e3_x +
                 3.0 * b_coeffs[idx].x * e2_x +
                 2.0 * c_coeffs[idx].x * e_x +
@@ -255,30 +239,30 @@ impl Grid {
                 2.0 * c_coeffs[idx].y * e_y +
                 self.cells[idx].density_y;
 
-            // Conversion de la masse en densité
+            // Convert mass to density
             let new_density = cell_masses[idx] / cell_volume;
 
             density_updates.push((idx, new_density, new_density_x, new_density_y));
         }
 
-        // Appliquer les mises à jour de densité et dérivées
+        // Apply density and derivative updates
         for (idx, new_density, new_density_x, new_density_y) in density_updates {
             self.cells[idx].density = new_density;
             self.cells[idx].density_x = new_density_x;
             self.cells[idx].density_y = new_density_y;
         }
 
-        // Application des conditions aux limites pour la densité
+        // Apply boundary conditions for density
         self.apply_density_boundary_conditions();
     }
 
-    // Calcul des gradients de densité
+    // Compute density gradients
     pub fn compute_density_gradients(&mut self) {
-        // Utilisation de différences finies centrées pour calculer les dérivées
+        // Use centered finite differences to compute derivatives
         let n = N as usize;
-        let h = 1.0 / N as f32;
+        let h = 1.0 / N;
 
-        // Structure pour stocker toutes les mises à jour
+        // Structure to store all updates
         struct GradientUpdate {
             idx: usize,
             density_x: f32,
@@ -288,10 +272,10 @@ impl Grid {
             density_xy: Option<f32>,
         }
 
-        // Collecte des informations pour les mises à jour
+        // Collect information for updates
         let mut updates = Vec::new();
 
-        // Première boucle pour calculer les valeurs
+        // First loop to compute values
         for (i, j, idx) in self.iter_morton() {
             if !self.in_bounds(i, j) || self.cells[idx].wall {
                 continue;
@@ -306,51 +290,51 @@ impl Grid {
                 density_xy: None,
             };
 
-            // Récupérer la densité de la cellule courante
+            // Retrieve the density of the current cell
             let density_current = self.cells[idx].density;
 
-            // Différences finies centrées pour dx
+            // Centered finite differences for dx
             if i > 1 && i < n {
                 let density_left = self.cells[self.to_index(i - 1, j)].density;
                 let density_right = self.cells[self.to_index(i + 1, j)].density;
                 update.density_x = (density_right - density_left) / (2.0 * h);
             } else if i == 1 {
-                // Différence avant pour le bord gauche
+                // Forward difference for the left edge
                 let density_right = self.cells[self.to_index(i + 1, j)].density;
                 update.density_x = (density_right - density_current) / h;
             } else if i == n {
-                // Différence arrière pour le bord droit
+                // Backward difference for the right edge
                 let density_left = self.cells[self.to_index(i - 1, j)].density;
                 update.density_x = (density_current - density_left) / h;
             }
 
-            // Différences finies centrées pour dy
+            // Centered finite differences for dy
             if j > 1 && j < n {
                 let density_bottom = self.cells[self.to_index(i, j - 1)].density;
                 let density_top = self.cells[self.to_index(i, j + 1)].density;
                 update.density_y = (density_top - density_bottom) / (2.0 * h);
             } else if j == 1 {
-                // Différence avant pour le bord inférieur
+                // Forward difference for the bottom edge
                 let density_top = self.cells[self.to_index(i, j + 1)].density;
                 update.density_y = (density_top - density_current) / h;
             } else if j == n {
-                // Différence arrière pour le bord supérieur
+                // Backward difference for the top edge
                 let density_bottom = self.cells[self.to_index(i, j - 1)].density;
                 update.density_y = (density_current - density_bottom) / h;
             }
 
-            // Calcul des dérivées secondes (pour une meilleure précision)
+            // Compute second derivatives (for better accuracy)
             if i > 1 && i < n && j > 1 && j < n {
                 let density_left = self.cells[self.to_index(i - 1, j)].density;
                 let density_right = self.cells[self.to_index(i + 1, j)].density;
                 let density_bottom = self.cells[self.to_index(i, j - 1)].density;
                 let density_top = self.cells[self.to_index(i, j + 1)].density;
 
-                // Dérivées secondes
+                // Second derivatives
                 update.density_xx = Some((density_right - 2.0 * density_current + density_left) / (h * h));
                 update.density_yy = Some((density_top - 2.0 * density_current + density_bottom) / (h * h));
 
-                // Dérivée croisée
+                // Cross derivative
                 let density_top_right = self.cells[self.to_index(i + 1, j + 1)].density;
                 let density_top_left = self.cells[self.to_index(i - 1, j + 1)].density;
                 let density_bottom_right = self.cells[self.to_index(i + 1, j - 1)].density;
@@ -362,7 +346,7 @@ impl Grid {
             updates.push(update);
         }
 
-        // Appliquer toutes les mises à jour
+        // Apply all updates
         for update in updates {
             self.cells[update.idx].density_x = update.density_x;
             self.cells[update.idx].density_y = update.density_y;
@@ -381,11 +365,11 @@ impl Grid {
         }
     }
 
-    // Application des conditions aux limites pour la densité
+    // Apply boundary conditions for density
     pub fn apply_density_boundary_conditions(&mut self) {
         let n = N as usize;
 
-        // Structure pour stocker les mises à jour
+        // Structure to store updates
         struct BoundaryUpdate {
             idx: usize,
             density: f32,
@@ -395,9 +379,9 @@ impl Grid {
 
         let mut updates = Vec::new();
 
-        // Conditions aux limites pour les bords horizontaux
+        // Boundary conditions for horizontal edges
         for i in 1..=n {
-            // Bord inférieur
+            // Bottom edge
             let idx_bottom = self.to_index(i, 1);
             let idx_above = self.to_index(i, 2);
             if !self.cells[idx_bottom].wall {
@@ -409,7 +393,7 @@ impl Grid {
                 });
             }
 
-            // Bord supérieur
+            // Top edge
             let idx_top = self.to_index(i, n);
             let idx_below = self.to_index(i, n - 1);
             if !self.cells[idx_top].wall {
@@ -422,12 +406,12 @@ impl Grid {
             }
         }
 
-        // Conditions aux limites pour les bords verticaux
+        // Boundary conditions for vertical edges
         for j in 1..=n {
-            // Bord gauche - condition d'entrée
+            // Left edge - inlet condition
             let idx_left = self.to_index(1, j);
             if !self.cells[idx_left].wall {
-                // Densité constante à l'entrée
+                // Constant density at the inlet
                 updates.push(BoundaryUpdate {
                     idx: idx_left,
                     density: FLOW_DENSITY,
@@ -436,7 +420,7 @@ impl Grid {
                 });
             }
 
-            // Bord droit - condition de sortie
+            // Right edge - outlet condition
             let idx_right = self.to_index(n, j);
             let idx_before = self.to_index(n - 1, j);
             if !self.cells[idx_right].wall {
@@ -449,14 +433,14 @@ impl Grid {
             }
         }
 
-        // Collecter les informations pour les conditions aux murs
+        // Collect information for wall conditions
         let mut wall_updates = Vec::new();
         for (i, j, idx) in self.iter_morton() {
             if !self.in_bounds(i, j) || !self.cells[idx].wall {
                 continue;
             }
 
-            // Pour chaque mur, on regarde les cellules voisines non-murs
+            // For each wall, look at neighboring non-wall cells
             let mut sum_density = 0.0;
             let mut count = 0;
 
@@ -473,7 +457,7 @@ impl Grid {
                 }
             }
 
-            // Réflexion de la densité pour les murs
+            // Reflect density for walls
             if count > 0 {
                 wall_updates.push(BoundaryUpdate {
                     idx,
@@ -484,10 +468,10 @@ impl Grid {
             }
         }
 
-        // Ajouter les mises à jour des murs à la liste globale
+        // Add wall updates to the global list
         updates.extend(wall_updates);
 
-        // Appliquer toutes les mises à jour
+        // Apply all updates
         for update in updates {
             self.cells[update.idx].density = update.density;
 

@@ -1,7 +1,7 @@
 // Window parameters
-pub const ADAPT_TO_WINDOW: bool = true;
-pub const WINDOW_HEIGHT: usize = if ADAPT_TO_WINDOW == true { (N as usize +2) * DY as usize } else { 720 };
-pub const WINDOW_WIDTH: usize = if ADAPT_TO_WINDOW == true { (N as usize +2) * DX as usize } else { 720 };
+pub const ADAPT_TO_WINDOW: bool = true;  // Adapt the window size to the grid size
+pub const WINDOW_HEIGHT: usize = if ADAPT_TO_WINDOW == true { (N as usize +2) * DY as usize } else { 720 };  // Height of the window
+pub const WINDOW_WIDTH: usize = if ADAPT_TO_WINDOW == true { (N as usize +2) * DX as usize } else { 720 };   // Width of the window
 
 
 
@@ -10,7 +10,7 @@ pub const SIM_STEPS: usize = 5000; // Potentially the number of simulation steps
 pub const PRINT_FORCES: bool = false; // Print forces
 pub const CIP_CSL4 : bool = false; // (For now have to keep it on false) Use CIP-CSL4 method for density advection
 pub const DENS_ADV_FAC: f32 = 0.1; // Factor for density advection
-pub const VEL_STEP: &str = "2"; // "1" for vel_step, "2" for vel2_step, "cip_csl4" for vel_step_cip_csl4
+pub const VEL_STEP: &str = "1"; // "1" for vel_step, "2" for vel2_step, "cip_csl4" for vel_step_cip_csl4
 pub const PROJECT : &str = "1"; // "1" for project, "2" for project2
 pub const KARMAN_VORTEX: bool = false; // Use Karman vortex (at least tries to)
 pub const CENTER_SOURCE: bool = true; // Use a circular source in the center of the grid
@@ -45,13 +45,12 @@ pub const SIZE: f32 = (N + 2.0) * (N + 2.0); // IT WILL BE INTEGER \\
 
 
 // Physical parameters
-pub const DT: f32 = 1.0/1200.0;
+pub const DT: f32 = 1.0/500.0; // Time step (in seconds)
 
 
 
 // Fluid parameters
-// todo : solve viscosity problems
-pub const VISCOSITY: f32 = 0.00; // A bit of viscosity for Karman vortex
+pub const VISCOSITY: f32 = 0.001; // A bit of viscosity for Karman vortex
 
 
 

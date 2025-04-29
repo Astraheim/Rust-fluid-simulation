@@ -19,9 +19,9 @@ fn main() {
     // Grid::print_grid_density(&grid);
 
 
-    //Grid::place_random_objects(&mut grid, 9, 15.0, 40.0);
+    Grid::place_random_objects(&mut grid, 9, 15.0, 40.0);
     run_simulation(&mut grid, 0);
-    
+
 
     println!("Global density {:2}", grid.total_density());
 

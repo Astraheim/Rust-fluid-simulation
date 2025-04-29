@@ -7,12 +7,12 @@ use rand::distr::Distribution;
 
 
 impl Grid {
-    // Place aléatoirement différentes formes dans la grille
+    /// Place aléatoirement différentes formes dans la grille
     pub fn place_random_objects(&mut self, num_objects: usize, min_size: f32, max_size: f32) {
         let mut rng = rand::rng();
         let shape_dist = Uniform::new(0, 4).unwrap();
 
-        // Définir les limites pour le placement (éviter les bords)
+        // Setup limits for movement
         let border_margin = (max_size * 1.5) as usize;
         let min_pos = border_margin;
         let max_pos_x = (N as usize).saturating_sub(border_margin);
@@ -40,7 +40,8 @@ impl Grid {
         println!("✔ Placed {} random objects in the grid.", num_objects);
     }
 
-    // Crée un carré dans la grille
+
+    /// Create a square in the grid
     pub fn square(&mut self, center_x: isize, center_y: isize, side_length: f32) {
         let half_side = (side_length / 2.0) as isize;
         let start_x = center_x - half_side;
@@ -57,7 +58,8 @@ impl Grid {
         }
     }
 
-    // Crée un rectangle dans la grille
+
+    /// Create a rectangle in the grid
     pub fn rectangle(&mut self, center_x: isize, center_y: isize, width: f32, height: f32) {
         let half_width = (width / 2.0) as isize;
         let half_height = (height / 2.0) as isize;
@@ -75,7 +77,8 @@ impl Grid {
         }
     }
 
-    // Crée un triangle dans la grille
+
+    /// Crée un triangle dans la grille
     pub fn triangle(&mut self, center_x: isize, center_y: isize, size: f32) {
         let height = size as isize;
         let half_base = (size / 2.0) as isize;
@@ -96,7 +99,8 @@ impl Grid {
         }
     }
 
-    // Version alternative : triangle avec contour seulement
+
+    /// Draw only the outline of a triangle in the grid
     pub fn triangle_outline(&mut self, center_x: isize, center_y: isize, size: f32) {
         let height = size as isize;
         let half_base = (size / 2.0) as isize;
@@ -112,7 +116,8 @@ impl Grid {
         self.draw_line(bottom_right.0, bottom_right.1, top.0, top.1);
     }
 
-    // Utilitaire pour tracer une ligne d'un point à un autre (algorithme de Bresenham)
+
+    /// Another utility using bresenham algorithm to draw lines
     fn draw_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize) {
         let mut x0 = x0;
         let mut y0 = y0;

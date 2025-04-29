@@ -3,7 +3,7 @@ use crate::grid::*;
 use minifb::{Window, WindowOptions};
 use std::time::Instant;
 
-// Vorticity calculation for colourisation (safe bounds)
+/// Vorticity calculation for colourisation (safe bounds)
 fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
     let dx = DX;
     let dy = DY;
@@ -24,7 +24,7 @@ fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
     dv_dx - du_dy
 }
 
-// Draw a line using Bresenham's algorithm
+/// Draw a line using Bresenham's algorithm
 fn draw_line(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
     let dx = (x1 as isize - x0 as isize).abs();
     let dy = -(y1 as isize - y0 as isize).abs();
@@ -51,7 +51,7 @@ fn draw_line(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, 
     }
 }
 
-// Map density to color when not painting vorticity
+/// Map density to color when not painting vorticity
 fn density_color(density: f32) -> u32 {
     if density <= 20.0 {
         let intensity = (255.0 * (1.0 - density / 20.0)).clamp(0.0, 255.0) as u32;
@@ -63,7 +63,7 @@ fn density_color(density: f32) -> u32 {
     }
 }
 
-// Fonction pour calculer les points d'une ligne en utilisant l'algorithme de Bresenham
+/// Function to compute route between two point using Bresenham algorithm
 fn bresenham_line(x0: usize, y0: usize, x1: usize, y1: usize) -> Vec<(usize, usize)> {
     let mut points = Vec::new();
 
@@ -96,7 +96,7 @@ fn bresenham_line(x0: usize, y0: usize, x1: usize, y1: usize) -> Vec<(usize, usi
     points
 }
 
-// Launch the simulation and rendering
+/// Launch the simulation and rendering and handle user input
 pub fn run_simulation(grid: &mut Grid, mut step: i32) {
     let start = Instant::now();
     let width = WINDOW_WIDTH;
@@ -115,12 +115,12 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
     window.set_key_repeat_delay(0.25);
     window.set_key_repeat_rate(0.05);
 
-    // Variables pour suivre l'état de la souris
+    // Variables to track mouse state
     let mut mouse_down = false;
     let mut last_grid_pos: Option<(usize, usize)> = None;
     let mut last_mouse_time = Instant::now();
 
-    // Variable d'état pour la pause
+    // State variable for pausing
     let mut paused = false;
 
     println!("Starting simulation");
@@ -133,39 +133,38 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             println!("Simulation {}", if paused { "PAUSED, PRESS 'P' TO RESUME "} else { "RUNNING, PRESS 'P' TO PAUSE" });
         }
 
-        // Gérer les événements de souris
+        // Handle mouse events
         let mouse_pos = window.get_mouse_pos(minifb::MouseMode::Discard);
         let mouse_pressed = window.get_mouse_down(minifb::MouseButton::Left);
 
-        // Mettre à jour l'état de la souris
+        // Update mouse state
         if mouse_pressed {
             let now = Instant::now();
 
             if !mouse_down {
-                // Premier clic détecté
+                // First detected clic
                 mouse_down = true;
-                // Réinitialiser le timer quand on commence un nouveau clic
+                // Reset timer at the beginning of another clic
                 last_mouse_time = now;
             }
 
-            // Convertir la position de la souris en coordonnées de grille
+            // Convert mouse position in grid coordinates
             if let Some((mouse_x, mouse_y)) = mouse_pos {
                 let grid_x = (mouse_x as usize / DX as usize).clamp(1, N as usize);
                 let grid_y = (mouse_y as usize / DY as usize).clamp(1, N as usize);
                 let current_pos = (grid_x, grid_y);
 
-                // S'il y a un changement de position depuis le dernier point ou premier clic
+                // If there is a change in position since last clic or first clic
                 if last_grid_pos.is_none() || last_grid_pos.unwrap() != current_pos {
-                    // Dessiner un mur à cette position
+                    // Draw a wall on this position
                     let idx = grid.to_index(grid_x, grid_y);
                     grid.cells[idx].wall = true;
 
-                    // Si nous faisons un drag, dessiner une ligne entre le dernier point et le point actuel
-                    // et que moins d'une seconde s'est écoulée depuis le dernier point
+                    // Handle mouse drag and draw wall il between detected clics
                     let time_elapsed = now.duration_since(last_mouse_time);
                     if let Some((last_x, last_y)) = last_grid_pos {
                         if time_elapsed.as_secs_f32() < 1.0 {
-                            // Utiliser l'algorithme de Bresenham pour tracer une ligne de murs
+                            // Uses Bresenham's algorithm to draw a line between the last and current position
                             let line_points = bresenham_line(last_x, last_y, grid_x, grid_y);
                             for (x, y) in line_points {
                                 if x >= 1 && x <= N as usize && y >= 1 && y <= N as usize {
@@ -181,7 +180,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 }
             }
         } else {
-            // La souris a été relâchée
+            // Mouse is realeased
             if mouse_down {
                 mouse_down = false;
                 last_grid_pos = None;
@@ -252,7 +251,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             .update_with_buffer(&buffer, width, height)
             .expect("Error while updating the window");
 
-        // Si la simulation est en pause, ne pas mettre à jour la physique
+        // If simulation is paused, don't update physic simulation
         if paused {
             continue;
         }
@@ -293,12 +292,12 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             grid.print_object_forces()
         }
 
-        // Optionally print timing
+        // Optionally print timing (this one especially for performances purposes)
         if step == 100  {
             let elapsed = start.elapsed();
             println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour 100 vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", elapsed);
         }
-        // Optionally print timing
+        // Optionally print timing (to see time elapsed after SIM_STEPS steps)
         if step == SIM_STEPS as i32 {
             let elapsed = start.elapsed();
             println!("§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§ \n Completed {} steps in {:?}\n§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§", SIM_STEPS, elapsed);
