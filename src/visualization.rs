@@ -2,12 +2,11 @@ use crate::conditions::*;
 use crate::grid::*;
 use minifb::{Window, WindowOptions};
 use std::time::Instant;
-use crate::pressure_computation::*;
 
 // Vorticity calculation for colourisation (safe bounds)
 fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
-    let dx = DX as f32;
-    let dy = DY as f32;
+    let dx = DX;
+    let dy = DY;
 
     let im = i.saturating_sub(1).min(N as usize);
     let ip = (i + 1).min(N as usize);
@@ -64,6 +63,39 @@ fn density_color(density: f32) -> u32 {
     }
 }
 
+// Fonction pour calculer les points d'une ligne en utilisant l'algorithme de Bresenham
+fn bresenham_line(x0: usize, y0: usize, x1: usize, y1: usize) -> Vec<(usize, usize)> {
+    let mut points = Vec::new();
+
+    let dx = (x1 as isize - x0 as isize).abs();
+    let dy = (y1 as isize - y0 as isize).abs();
+
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let sy = if y0 < y1 { 1 } else { -1 };
+
+    let mut err = dx - dy;
+    let mut x = x0 as isize;
+    let mut y = y0 as isize;
+
+    loop {
+        points.push((x as usize, y as usize));
+
+        if x == x1 as isize && y == y1 as isize { break; }
+
+        let e2 = 2 * err;
+        if e2 > -dy {
+            err -= dy;
+            x += sx;
+        }
+        if e2 < dx {
+            err += dx;
+            y += sy;
+        }
+    }
+
+    points
+}
+
 // Launch the simulation and rendering
 pub fn run_simulation(grid: &mut Grid, mut step: i32) {
     let start = Instant::now();
@@ -79,10 +111,83 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
     )
         .unwrap_or_else(|e| panic!("{}", e));
 
+    // Enable key repeat for better user experience
+    window.set_key_repeat_delay(0.25);
+    window.set_key_repeat_rate(0.05);
+
+    // Variables pour suivre l'état de la souris
+    let mut mouse_down = false;
+    let mut last_grid_pos: Option<(usize, usize)> = None;
+    let mut last_mouse_time = Instant::now();
+
+    // Variable d'état pour la pause
+    let mut paused = false;
+
     println!("Starting simulation");
 
     let n_max = N as usize + 1;
     while window.is_open() {
+        // Check for pause key (P)
+        if window.is_key_pressed(minifb::Key::P, minifb::KeyRepeat::No) {
+            paused = !paused;
+            println!("Simulation {}", if paused { "PAUSED, PRESS 'P' TO RESUME "} else { "RUNNING, PRESS 'P' TO PAUSE" });
+        }
+
+        // Gérer les événements de souris
+        let mouse_pos = window.get_mouse_pos(minifb::MouseMode::Discard);
+        let mouse_pressed = window.get_mouse_down(minifb::MouseButton::Left);
+
+        // Mettre à jour l'état de la souris
+        if mouse_pressed {
+            let now = Instant::now();
+
+            if !mouse_down {
+                // Premier clic détecté
+                mouse_down = true;
+                // Réinitialiser le timer quand on commence un nouveau clic
+                last_mouse_time = now;
+            }
+
+            // Convertir la position de la souris en coordonnées de grille
+            if let Some((mouse_x, mouse_y)) = mouse_pos {
+                let grid_x = (mouse_x as usize / DX as usize).clamp(1, N as usize);
+                let grid_y = (mouse_y as usize / DY as usize).clamp(1, N as usize);
+                let current_pos = (grid_x, grid_y);
+
+                // S'il y a un changement de position depuis le dernier point ou premier clic
+                if last_grid_pos.is_none() || last_grid_pos.unwrap() != current_pos {
+                    // Dessiner un mur à cette position
+                    let idx = grid.to_index(grid_x, grid_y);
+                    grid.cells[idx].wall = true;
+
+                    // Si nous faisons un drag, dessiner une ligne entre le dernier point et le point actuel
+                    // et que moins d'une seconde s'est écoulée depuis le dernier point
+                    let time_elapsed = now.duration_since(last_mouse_time);
+                    if let Some((last_x, last_y)) = last_grid_pos {
+                        if time_elapsed.as_secs_f32() < 1.0 {
+                            // Utiliser l'algorithme de Bresenham pour tracer une ligne de murs
+                            let line_points = bresenham_line(last_x, last_y, grid_x, grid_y);
+                            for (x, y) in line_points {
+                                if x >= 1 && x <= N as usize && y >= 1 && y <= N as usize {
+                                    let idx = grid.to_index(x, y);
+                                    grid.cells[idx].wall = true;
+                                }
+                            }
+                        }
+                    }
+
+                    last_grid_pos = Some(current_pos);
+                    last_mouse_time = now;
+                }
+            }
+        } else {
+            // La souris a été relâchée
+            if mouse_down {
+                mouse_down = false;
+                last_grid_pos = None;
+            }
+        }
+
         // Clear buffer
         buffer.fill(0xFFFFFFFF);
 
@@ -108,7 +213,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 }
 
                 // Choose colour based on mode
-                let colour = if PAINT_VORTICITY {
+                let colour = if PAINT_VORTICITY == true{
                     let vort = vorticity(grid, i, j);
                     let iv = ((vort.abs().min(5.0)) * 25.0) as u32;
                     if vort > 0.0 {
@@ -128,7 +233,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 }
 
                 // Draw velocity vector
-                if DRAW_VELOCITY_VECTORS {
+                if DRAW_VELOCITY_VECTORS == true{
                     let vx = grid.cells[idx].velocity.x;
                     let vy = grid.cells[idx].velocity.y;
                     let cx = x0 + (DX as usize) / 2;
@@ -147,22 +252,27 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             .update_with_buffer(&buffer, width, height)
             .expect("Error while updating the window");
 
+        // Si la simulation est en pause, ne pas mettre à jour la physique
+        if paused {
+            continue;
+        }
+
         step += 1;
 
         // Flow injection or custom source
-        if AIR_FLOW {
+        if AIR_FLOW ==true {
             let hole_pos: Vec<usize> = (1..=N as usize)
                 .filter(|&x| x % FLOW_SPACE == 0)
                 .collect();
             grid.initialize_wind_tunnel(FLOW_DENSITY, &hole_pos);
-        } else if KARMAN_VORTEX {
+        } else if KARMAN_VORTEX == true{
             for i in 0..=50 {
                 Grid::cell_init(grid, 5, 127+i-25, 0.3, 0.0, 20.0);
 
                 // for karman vortex
                 Grid::velocity_init(grid, 10, 127+i-25, 0.9, 0.0);
             }
-        } else if CENTER_SOURCE {
+        } else if CENTER_SOURCE == true{
             grid.center_source(CENTER_SOURCE_RADIUS, CENTER_SOURCE_DENSITY, CENTER_SOURCE_VELOCITY, CENTER_SOURCE_TYPE);
         }
 
@@ -179,7 +289,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
         }
 
 
-        if PRINT_FORCES {
+        if PRINT_FORCES == true{
             grid.print_object_forces()
         }
 
@@ -195,4 +305,3 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
         }
     }
 }
-

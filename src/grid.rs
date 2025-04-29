@@ -3,7 +3,6 @@ use std::vec::Vec;
 use rayon::prelude::*;
 use std::fmt::Write;
 use std::ops::Mul;
-use crate::pressure_computation::*;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector2 {
@@ -178,7 +177,7 @@ impl Grid {
             cells: vec![Cell::default(); SIZE as usize],
         };
 
-        if EXT_BORDER {
+        if EXT_BORDER == true{
             for i in 0..=(N + 1.0) as usize {
                 for &j in &[0, (N + 1.0) as usize] {
                     if let Some(idx) = grid.try_index(i, j) {
@@ -207,7 +206,7 @@ impl Grid {
 
     // Diffuse density in the grid
     pub fn diffuse(&mut self, diff: f32, dt: f32) {
-        let a = dt * diff * (N * N) as f32;
+        let a = dt * diff * (N * N) ;
         let mut new_density = vec![0.0; self.cells.len()];
 
         for _ in 0..20 {
@@ -254,7 +253,7 @@ impl Grid {
 
     // Advect the velocity of the cells in the grid
     pub fn advect_velocity(&mut self, dt: f32) {
-        let dt0 = dt * N as f32;
+        let dt0 = dt * N ;
         let mut new_velocities = vec![[0.0; 2]; self.cells.len()];
         new_velocities.par_iter_mut().enumerate().for_each(|(idx, new_vel)| {
             let (i, j) = morton_decode(idx);
@@ -266,8 +265,8 @@ impl Grid {
             let x = (i as f32) - dt0 * cell.velocity.x;
             let y = (j as f32) - dt0 * cell.velocity.y;
 
-            let x = x.clamp(0.5, N as f32 + 0.5);
-            let y = y.clamp(0.5, N as f32 + 0.5);
+            let x = x.clamp(0.5, N + 0.5);
+            let y = y.clamp(0.5, N + 0.5);
 
             let i0 = x.floor() as usize;
             let i1 = i0 + 1;
@@ -316,7 +315,7 @@ impl Grid {
 
     // Advect density in the grid
     pub fn advect_density(&mut self, dt: f32) {
-        let dt0 = dt * N as f32;
+        let dt0 = dt * N ;
 
         // Save total density before advection
         // let total_density_before = self.total_density();
@@ -337,8 +336,8 @@ impl Grid {
             let y = j as f32 - dt0 * cell.velocity.y;
 
             // Clamping with reflection at boundaries (but not limiting the actual density values)
-            let x = x.clamp(0.5, N as f32 + 0.5);
-            let y = y.clamp(0.5, N as f32 + 0.5);
+            let x = x.clamp(0.5, N  + 0.5);
+            let y = y.clamp(0.5, N  + 0.5);
 
             // Indices and weights for bilinear interpolation
             let i0 = x.floor() as usize;
@@ -356,11 +355,11 @@ impl Grid {
                 if i < self.cells.len() && j < self.cells.len() {
                     let idx = morton_encode(i, j);
                     if idx < self.cells.len() {
-                        if !self.cells[idx].wall {
-                            return self.cells[idx].density;
+                        return if !self.cells[idx].wall {
+                            self.cells[idx].density
                         } else {
                             // Reflection: use density of current cell
-                            return cell.density;
+                            cell.density
                         }
                     }
                 }
@@ -384,7 +383,7 @@ impl Grid {
         let total_density_after = self.total_density();
         if total_density_after > 0.0 && total_density_before > 0.0 {
             let correction_factor = total_density_before / total_density_after;
-                // Apply correction if difference is significan
+                // Apply correction if difference is significant
             if (correction_factor - 1.0).abs() > 1e-6 {
                 for cell in self.cells.iter_mut().filter(|c| !c.wall) {
                     cell.density *= correction_factor;
@@ -396,7 +395,7 @@ impl Grid {
 
     // Project the velocity field to ensure incompressibility
     pub fn project(&mut self) {
-        let h = 1.0 / N as f32;
+        let h = 1.0 / N ;
         let mut pressure = vec![0.0; SIZE as usize];
         let mut div = vec![0.0; SIZE as usize];
 
@@ -554,7 +553,7 @@ impl Grid {
 
 
     pub fn extrapolate(&mut self) {
-        // On suppose que N est la taille logique (hors-bord), donc les bords sont 0 et N+1
+        // On suppose que N est la taille logique (hors-bord), donc les bords sont 0 et N+1.
         let n = N as usize;
 
         // Extrapolation verticale pour u (velocity.x)
@@ -820,7 +819,7 @@ impl Grid {
         let radius = (N as usize / 6) as f32 -10.5 ; // Rayon de l'obstacle
         let center = ((N as usize + 2) / 6, (N as usize + 2) / 2);
 
-        self.circle(center.0 as isize, center.1 as isize, radius as f32);
+        self.circle(center.0 as isize, center.1 as isize, radius);
 
         // Écoulement horizontal de gauche à droite avec densité
         for j in 1..(N as usize + 1) {

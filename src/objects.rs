@@ -1,6 +1,6 @@
 use crate::conditions::*;
 use crate::grid::{Grid};
-use rand::{Rng, rng};
+use rand::{Rng};
 use rand::distr::Uniform;
 use rand::distr::Distribution;
 
@@ -9,7 +9,7 @@ use rand::distr::Distribution;
 impl Grid {
     // Place aléatoirement différentes formes dans la grille
     pub fn place_random_objects(&mut self, num_objects: usize, min_size: f32, max_size: f32) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let shape_dist = Uniform::new(0, 4).unwrap();
 
         // Définir les limites pour le placement (éviter les bords)
@@ -96,7 +96,7 @@ impl Grid {
         }
     }
 
-    // Version alternative: triangle avec contour seulement
+    // Version alternative : triangle avec contour seulement
     pub fn triangle_outline(&mut self, center_x: isize, center_y: isize, size: f32) {
         let height = size as isize;
         let half_base = (size / 2.0) as isize;

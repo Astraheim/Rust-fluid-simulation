@@ -1,13 +1,13 @@
 // Window parameters
 pub const ADAPT_TO_WINDOW: bool = true;
-pub const WINDOW_HEIGHT: usize = if ADAPT_TO_WINDOW { (N as usize +2) * DY as usize } else { 720 };
-pub const WINDOW_WIDTH: usize = if ADAPT_TO_WINDOW { (N as usize +2) * DX as usize } else { 720 };
+pub const WINDOW_HEIGHT: usize = if ADAPT_TO_WINDOW == true { (N as usize +2) * DY as usize } else { 720 };
+pub const WINDOW_WIDTH: usize = if ADAPT_TO_WINDOW == true { (N as usize +2) * DX as usize } else { 720 };
 
 
 
 // Simulation parameters
 pub const SIM_STEPS: usize = 5000; // Potentially the number of simulation steps
-pub const PRINT_FORCES: bool = true; // Print forces
+pub const PRINT_FORCES: bool = false; // Print forces
 pub const CIP_CSL4 : bool = false; // (For now have to keep it on false) Use CIP-CSL4 method for density advection
 pub const DENS_ADV_FAC: f32 = 0.1; // Factor for density advection
 pub const VEL_STEP: &str = "2"; // "1" for vel_step, "2" for vel2_step, "cip_csl4" for vel_step_cip_csl4
@@ -27,7 +27,7 @@ pub const AIR_FLOW: bool = false; // Simulate air flow
 pub const FLOW_DIRECTION: &str = "right"; //"left","right","up","down"  // Direction of the flow
 pub const FLOW_SPACE: usize = 1; // Space between two rows of flow
 pub const FLOW_DENSITY: f32 = 25.0; // Density of the flow
-pub const FLOW_VELOCITY: f32 = if AIR_FLOW {0.1} else { 0.0 }; // Velocity of the flow
+pub const FLOW_VELOCITY: f32 = if AIR_FLOW == true {0.1} else { 0.0 }; // Velocity of the flow
 pub const DRAW_VELOCITY_VECTORS: bool = false; // Draw velocity vectors
 pub const VECTOR_SIZE_FACTOR : f32 = 8.0 ; // Factor for the size of the velocity vector
 pub const INFLOW_VELOCITY: f32 = FLOW_VELOCITY; // Always force inflow velocity to be equal to the flow velocity
@@ -45,7 +45,7 @@ pub const SIZE: f32 = (N + 2.0) * (N + 2.0); // IT WILL BE INTEGER \\
 
 
 // Physical parameters
-pub const DT: f32 = 1.0/120.0;
+pub const DT: f32 = 1.0/1200.0;
 
 
 
