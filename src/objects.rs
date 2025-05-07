@@ -3,11 +3,47 @@ use crate::grid::{Grid};
 use rand::{Rng};
 use rand::distr::Uniform;
 use rand::distr::Distribution;
+// Last update to rendu_code_tex: 2025-05-02
+// last modif: 2025-05-02
+
+/*
+FR :
+    Placement aléatoire d'obstacles dans la grille
+
+    Génération procédurale : Cette section permet de générer automatiquement des formes solides (murs) dans la grille de simulation.
+    Types de formes : Carré, rectangle, triangle plein, triangle en contour (outline) et cercle.
+    Contrôle de position : Les formes sont placées à l'intérieur de la grille avec une marge pour éviter les débordements.
+    Dessin précis : L'algorithme de Bresenham est utilisé pour tracer des lignes nettes dans le cas de contours triangulaires.
+    Objectif : Faciliter la génération de scènes variées pour tester l’interaction fluide/obstacle.
+
+    Améliorations possibles :
+
+    Ajouter une rotation aléatoire pour les formes non circulaires.
+    Introduire des formes plus complexes (polygones, ellipses).
+    Ajouter une gestion de la superposition ou des collisions lors du placement.
+    Permettre des motifs périodiques ou déterministes pour certaines études.
+
+ENG :
+    Random Placement of Obstacles in the Grid
+
+    Procedural Generation : This section enables automatic generation of solid shapes (walls) in the fluid simulation grid.
+    Shape Types : Square, rectangle, filled triangle, triangle outline, and circle (via external function).
+    Position Control : Shapes are placed within grid bounds, avoiding overflow via border margins.
+    Precise Drawing : Bresenham's algorithm is used to draw clean line segments for triangle outlines.
+    Purpose : Allows generating divers test scenes to study fluid — obstacle interaction.
+
+    Possible Improvements :
+
+    Add random rotation for non-circular shapes.
+    Introduce more complex shapes (polygons, ellipses).
+    Handle overlaps or collisions between placed objects.
+    Enable periodic or deterministic patterns for specific simulations.
+*/
 
 
 
 impl Grid {
-    /// Place aléatoirement différentes formes dans la grille
+    /// Place randomly different forms in the grid
     pub fn place_random_objects(&mut self, num_objects: usize, min_size: f32, max_size: f32) {
         let mut rng = rand::rng();
         let shape_dist = Uniform::new(0, 4).unwrap();
@@ -78,20 +114,19 @@ impl Grid {
     }
 
 
-    /// Crée un triangle dans la grille
+    /// Create a triangle in the grid
     pub fn triangle(&mut self, center_x: isize, center_y: isize, size: f32) {
         let height = size as isize;
         let half_base = (size / 2.0) as isize;
 
-        // Dessiner un triangle équilatéral
+        // Draw equilateral triangle
         for dy in 0..height {
-            // Largeur de la ligne actuelle (plus large vers le bas)
             let width_at_y = (2 * dy * half_base) / height;
             let start_x = center_x - width_at_y;
             let end_x = center_x + width_at_y;
 
             for x in start_x..=end_x {
-                let y = center_y + height - dy; // Inverser pour que la pointe soit vers le haut
+                let y = center_y + height - dy; 
                 if x >= 0 && x <= N as isize && y >= 0 && y <= N as isize {
                     self.wall_init(y as usize, x as usize, true);
                 }
@@ -105,12 +140,12 @@ impl Grid {
         let height = size as isize;
         let half_base = (size / 2.0) as isize;
 
-        // Les trois sommets du triangle
+        // Three corners of the triangle
         let top = (center_x, center_y - height/2);
         let bottom_left = (center_x - half_base, center_y + height/2);
         let bottom_right = (center_x + half_base, center_y + height/2);
 
-        // Tracer les trois côtés
+        // Draw the three sides
         self.draw_line(top.0, top.1, bottom_left.0, bottom_left.1);
         self.draw_line(bottom_left.0, bottom_left.1, bottom_right.0, bottom_right.1);
         self.draw_line(bottom_right.0, bottom_right.1, top.0, top.1);

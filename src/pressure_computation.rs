@@ -1,5 +1,38 @@
 use crate::conditions::*;
 use crate::grid::{Grid, Vector2, ObjectForce};
+// Last update to rendu_code_tex: 2025-05-02
+// last modif: 2025-05-02
+
+/*
+FR :
+    Fonctionnalités clés de l'analyse des forces sur objets solides (murs)
+
+    Détection des objets : Les cellules marquées comme "wall" sont regroupées en objets connexes via une exploration en profondeur (DFS).
+    Calcul des forces murales : Pour chaque cellule murale, on évalue les forces dues à la pression du fluide, la traînée (drag) et le cisaillement (shear).
+    Agrégation par objet : Les forces sont ensuite regroupées par objet pour obtenir la force totale, le centre de masse et le moment de force (torque).
+    Analyse directionnelle : L'orientation principale de la force résultante est estimée, avec une indication directionnelle (ex : ↑, ↘, ←).
+    Visualisation : Les résultats sont affichés dans la console pour aider au diagnostic des interactions fluide-objet.
+
+    Améliorations possibles :
+
+    L'accumulation du couple (torque) pourrait tenir compte de la distance physique réelle plutôt que des indices de cellule.
+    Une visualisation graphique des forces serait utile pour le debugging et la validation.
+
+
+ENG :
+    Key Features of Solid Object Force Analysis (walls)
+
+    Object Detection : Cells marked as "wall" are grouped into connected objects using depth first search (DFS).
+    Wall Force Computation : Each wall cell is subject to pressure, drag, and shear forces from adjacent fluid cells.
+    Object-wise Aggregation : Forces are aggregated per object to compute total force, center of mass, and torque.
+    Directional Analysis : The main direction of the resulting force is estimated and reported (e.g., ↑, ↘, ←).
+    Visualization : Results are printed to the console to support debugging of fluid object interactions.
+
+    Possible Improvements :
+
+    Torque accumulation could use actual physical distances instead of cell indices.
+    Graphical visualization of the forces would help with debugging and validation.
+*/
 
 
 impl Grid {
@@ -7,7 +40,7 @@ impl Grid {
 
     /// Process the forces of pressure caused by fluid on the walls of the grid
     pub fn compute_wall_forces(&self) -> Vec<Vector2> {
-        let h = 1.0 / N; // Taille d'une cellule
+        let h = 1.0 / N; // Size of a cell
         let mut forces = vec![Vector2::default(); self.cells.len()];
 
         for (i, j, idx) in self.iter_morton() {
@@ -17,10 +50,10 @@ impl Grid {
 
             // Directions around wall cells
             let neighbors = [
-                (i.wrapping_sub(1), j, Vector2 { x: -1.0, y: 0.0 }), // gauche
-                (i + 1, j, Vector2 { x: 1.0, y: 0.0 }),              // droite
-                (i, j.wrapping_sub(1), Vector2 { x: 0.0, y: -1.0 }), // bas
-                (i, j + 1, Vector2 { x: 0.0, y: 1.0 }),              // haut
+                (i.wrapping_sub(1), j, Vector2 { x: -1.0, y: 0.0 }), // left
+                (i + 1, j, Vector2 { x: 1.0, y: 0.0 }),              // right
+                (i, j.wrapping_sub(1), Vector2 { x: 0.0, y: -1.0 }), // bottom
+                (i, j + 1, Vector2 { x: 0.0, y: 1.0 }),              // top
             ];
 
             for &(ni, nj, normal) in &neighbors {
@@ -43,7 +76,7 @@ impl Grid {
                         let f_drag_y = drag_coef * v_normal.abs() * v_normal * normal.y;
 
                         // Wind shear force
-                        let visc_coef = VISCOSITY; // Utiliser la viscosité de votre simulation
+                        let visc_coef = VISCOSITY;
                         let f_shear_x = visc_coef * v_tang_x;
                         let f_shear_y = visc_coef * v_tang_y;
 
@@ -106,7 +139,7 @@ impl Grid {
             return Vec::new();
         }
 
-        // Initialisation of objects accumulators
+        // Initialization of objects accumulators
         let mut objects = Vec::with_capacity(max_id);
         for id in 1..=max_id {
             objects.push(ObjectForce {
@@ -125,7 +158,7 @@ impl Grid {
                 if obj_id > 0 {
                     let obj_idx = obj_id - 1;
 
-                    // Accumulation in center of mass
+                    // Accumulation in a center of mass
                     objects[obj_idx].center_of_mass.x += i as f32;
                     objects[obj_idx].center_of_mass.y += j as f32;
                     objects[obj_idx].cell_count += 1;

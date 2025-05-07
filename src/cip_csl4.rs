@@ -72,7 +72,7 @@ impl Grid {
                 continue;
             }
 
-            // Determine the "upwind" cell based on velocity direction
+            // Determine the "upwind" cell based on a velocity direction
             let vx = self.cells[idx].velocity.x;
             let vy = self.cells[idx].velocity.y;
 
@@ -191,7 +191,7 @@ impl Grid {
 
             let mut delta_mass = 0.0;
 
-            // Update mass using incoming and outgoing fluxes
+            // Update mass-using incoming and outgoing fluxes
             if idx_right < self.cells.len() && !self.cells[idx_right].wall {
                 delta_mass += dr[idx] - dr[idx_right];
             }

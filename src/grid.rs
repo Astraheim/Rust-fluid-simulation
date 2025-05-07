@@ -349,7 +349,7 @@ impl Grid {
                         return if !self.cells[idx].wall {
                             self.cells[idx].density
                         } else {
-                            // Reflection: use density of current cell
+                            // Reflection: use density of the current cell
                             cell.density
                         }
                     }
@@ -651,7 +651,7 @@ impl Grid {
                 let dy = j as f32 - center_y as f32;
                 let distance_squared = dx * dx + dy * dy;
 
-                // If current cell is not a wall
+                // If the current cell is not a wall
                 if distance_squared <= radius * radius {
                     let idx = self.to_index(i, j);
                     if !self.cells[idx].wall {
@@ -660,7 +660,7 @@ impl Grid {
 
                         // Compute velocity direction
                         if is_radial {
-                            // Initialise radial velocity
+                            // Initialize radial velocity
                             if distance_squared > 0.0 {
                                 let distance = distance_squared.sqrt();
                                 let dir_x = dx / distance;

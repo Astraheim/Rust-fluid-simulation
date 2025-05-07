@@ -3,7 +3,45 @@ use crate::grid::*;
 use minifb::{Window, WindowOptions};
 use std::time::Instant;
 
-/// Vorticity calculation for colourisation (safe bounds)
+/*
+FR :
+    Ce fichier contient la boucle principale de la simulation ainsi que les fonctions associées au rendu graphique, à l’interaction souris, 
+    à la coloration des cellules et au tracé de vecteurs. 
+    La fonction `run_simulation` gère le rendu de la grille à chaque pas de temps, l’injection de fluide, le tracé des murs à la souris, 
+    et les différentes sources (flux d’air, vortex de Kármán, source centrale).
+    Elle appelle aussi les étapes de simulation selon le mode choisi ('vel_step', `vel2_step', `cip_csl4').
+    
+    Fonctions principales :
+    - `run_simulation` : boucle temps, dessin, interaction, injection, calcul
+    - `vorticity` : calcule la vorticity locale pour la coloration
+    - `density_color` : mappe une densité scalaire à une couleur RGB
+    - `bresenham_line` / `draw_line_with_color` : algorithmes pour dessiner des lignes discrètes
+
+    Interactions utilisateur :
+    - Clic-gauche (maintenu) : dessine des murs à la souris sur la grille
+    - Touche P : met la simulation en pause ou la redémarre
+
+ENG :
+    This file contains the main simulation loop along with graphical rendering, mouse interaction, 
+    cell color mapping, and vector drawing functions.
+    The `run_simulation` function handles grid rendering at each timestep, fluid injection, 
+    mouse wall drawing, and various sources (air flow, Kármán vortex, central source).
+    It also calls the appropriate velocity step method based on the selected mode ('vel_step', `vel2_step', `cip_csl4').
+
+    Key functions :
+    - `run_simulation' : time loop, rendering, interaction, injection, physics
+    - `vorticity' : computes local vorticity for coloring
+    - `density_color' : maps scalar density to an RGB color
+    - `bresenham_line` / `draw_line_with_color' : discrete line drawing algorithms
+
+    User interactions :
+    - Left-click (drag) : draws walls interactively on the grid
+    - P key : pauses/resumes the simulation
+*/
+
+
+
+/// Vorticity calculation for colourization (safe bounds)
 fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
     let dx = DX;
     let dy = DY;
@@ -25,7 +63,7 @@ fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
 }
 
 /// Draw a line using Bresenham's algorithm
-fn draw_line(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
+pub fn draw_line_with_color(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
     let dx = (x1 as isize - x0 as isize).abs();
     let dy = -(y1 as isize - y0 as isize).abs();
     let mut err = dx + dy;
@@ -63,8 +101,8 @@ fn density_color(density: f32) -> u32 {
     }
 }
 
-/// Function to compute route between two point using Bresenham algorithm
-fn bresenham_line(x0: usize, y0: usize, x1: usize, y1: usize) -> Vec<(usize, usize)> {
+/// Function to compute a route between two points using the Bresenham algorithm
+pub fn bresenham_line(x0: usize, y0: usize, x1: usize, y1: usize) -> Vec<(usize, usize)> {
     let mut points = Vec::new();
 
     let dx = (x1 as isize - x0 as isize).abs();
@@ -111,7 +149,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
     )
         .unwrap_or_else(|e| panic!("{}", e));
 
-    // Enable key repeat for better user experience
+    // Enable key repeat for a better user experience
     window.set_key_repeat_delay(0.25);
     window.set_key_repeat_rate(0.05);
 
@@ -127,7 +165,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
 
     let n_max = N as usize + 1;
     while window.is_open() {
-        // Check for pause key (P)
+        // Check for a pause key (P)
         if window.is_key_pressed(minifb::Key::P, minifb::KeyRepeat::No) {
             paused = !paused;
             println!("Simulation {}", if paused { "PAUSED, PRESS 'P' TO RESUME "} else { "RUNNING, PRESS 'P' TO PAUSE" });
@@ -211,7 +249,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                     continue;
                 }
 
-                // Choose colour based on mode
+                // Choose color based on mode
                 let colour = if PAINT_VORTICITY == true{
                     let vort = vorticity(grid, i, j);
                     let iv = ((vort.abs().min(5.0)) * 25.0) as u32;
@@ -231,7 +269,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                     }
                 }
 
-                // Draw velocity vector
+                // Draw a velocity vector
                 if DRAW_VELOCITY_VECTORS == true{
                     let vx = grid.cells[idx].velocity.x;
                     let vy = grid.cells[idx].velocity.y;
@@ -241,7 +279,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                     let scale = VECTOR_SIZE_FACTOR / mag;
                     let ex = (cx as f32 + vx * scale) as usize;
                     let ey = (cy as f32 + vy * scale) as usize;
-                    draw_line(&mut buffer, width, cx, cy, ex, ey, 0x000000);
+                    draw_line_with_color(&mut buffer, width, cx, cy, ex, ey, 0x000000);
                 }
             }
         }
@@ -292,7 +330,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             grid.print_object_forces()
         }
 
-        // Optionally print timing (this one especially for performances purposes)
+        // Optionally print timing (this one especially for performance purposes)
         if step == 100  {
             let elapsed = start.elapsed();
             println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour 100 vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", elapsed);

@@ -1,5 +1,4 @@
 use crate::grid::*;
-use plotters::prelude::*;
 use std::time::Instant;
 use crate::visualization::run_simulation;
 
