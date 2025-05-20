@@ -1,7 +1,7 @@
-use crate::conditions::*;
-use crate::grid::{Grid, Vector2, ObjectForce};
+//use crate::conditions::*;
+use crate::grid2::{Grid2, Vector22,Cell2Type};
 // Last update to rendu_code_tex: 2025-05-02
-// last modif: 2025-05-02
+// last modif: 2025-05-13
 
 /*
 FR :
@@ -35,53 +35,63 @@ ENG :
 */
 
 
-impl Grid {
 
+// Structure pour représenter les forces sur un objet solide
+#[derive(Clone, Debug)]
+pub struct ObjectForce {
+    pub id: usize,               // Identifiant unique de l'objet
+    pub center_of_mass: Vector22, // Centre de masse de l'objet
+    pub total_force: Vector22,    // Force totale appliquée sur l'objet
+    pub torque: f32,             // Moment de force (couple)
+    pub cell_count: usize,       // Nombre de cellules composant l'objet
+}
 
-    /// Process the forces of pressure caused by fluid on the walls of the grid
-    pub fn compute_wall_forces(&self) -> Vec<Vector2> {
-        let h = 1.0 / N; // Size of a cell
-        let mut forces = vec![Vector2::default(); self.cells.len()];
+impl Grid2 {
+    /// Calcule les forces de pression causées par le fluide sur les murs de la grille
+    pub fn compute_wall_forces(&self) -> Vec<Vector22> {
+        let h = self.cell_size; // Taille d'une cellule
+        let mut forces = vec![Vector22::zeros(); self.cells.len()];
 
         for (i, j, idx) in self.iter_morton() {
-            if !self.cells[idx].wall {
+            if self.cells[idx].cell_type != Cell2Type::Solid {
                 continue;
             }
 
-            // Directions around wall cells
+            // Directions autour des cellules solides
             let neighbors = [
-                (i.wrapping_sub(1), j, Vector2 { x: -1.0, y: 0.0 }), // left
-                (i + 1, j, Vector2 { x: 1.0, y: 0.0 }),              // right
-                (i, j.wrapping_sub(1), Vector2 { x: 0.0, y: -1.0 }), // bottom
-                (i, j + 1, Vector2 { x: 0.0, y: 1.0 }),              // top
+                (i.wrapping_sub(1), j, Vector22::new(-1.0, 0.0)), // gauche
+                (i + 1, j, Vector22::new(1.0, 0.0)),             // droite
+                (i, j.wrapping_sub(1), Vector22::new(0.0, -1.0)), // bas
+                (i, j + 1, Vector22::new(0.0, 1.0)),             // haut
             ];
 
             for &(ni, nj, normal) in &neighbors {
-                if let Some(nidx) = self.try_index(ni, nj) {
-                    if !self.cells[nidx].wall {
-                        // Pressure force
+                if let Some(nidx) = self.try_idx(ni, nj) {
+                    if self.cells[nidx].cell_type == Cell2Type::Fluid {
+                        // Force de pression
                         let p = self.cells[nidx].pressure;
-                        let vx = &self.cells[nidx].velocity_x;
-                        let vy = &self.cells[nidx].velocity_y;
-                        let v_normal = vx * normal.x + vy * normal.y;
-                        // Tangential velocity
-                        let v_tang_x = vx - v_normal * normal.x;
-                        let v_tang_y = vy - v_normal * normal.y;
+                        let v = &self.cells[nidx].velocity.back;
+                        let v_normal = v.x * normal.x + v.y * normal.y;
 
-                        // Pression force (normal to the wall)
-                        let f_pressure = -p * normal;
+                        // Vitesse tangentielle
+                        let v_tang_x = v.x - v_normal * normal.x;
+                        let v_tang_y = v.y - v_normal * normal.y;
 
-                        // Drag force (opposite to the velocity)
+                        // Force de pression (normale au mur)
+                        let f_pressure = Vector22::new(-p * normal.x, -p * normal.y);
+
+                        // Force de traînée (opposée à la vitesse)
                         let drag_coef = 0.5; // Coefficient à ajuster
                         let f_drag_x = drag_coef * v_normal.abs() * v_normal * normal.x;
                         let f_drag_y = drag_coef * v_normal.abs() * v_normal * normal.y;
 
-                        // Wind shear force
-                        let visc_coef = VISCOSITY;
+                        // Force de cisaillement (shear)
+                        // On suppose VISCOSITY = 0.1 car non défini dans le code fourni
+                        let visc_coef = 0.1;
                         let f_shear_x = visc_coef * v_tang_x;
                         let f_shear_y = visc_coef * v_tang_y;
 
-                        // Total force
+                        // Force totale
                         forces[idx].x += (f_pressure.x + f_drag_x + f_shear_x) * h;
                         forces[idx].y += (f_pressure.y + f_drag_y + f_shear_y) * h;
                     }
@@ -92,30 +102,30 @@ impl Grid {
         forces
     }
 
-    /// Objects identification
+    /// Identification des objets solides connectés
     pub fn identify_objects(&self) -> Vec<usize> {
         let mut object_ids = vec![0; self.cells.len()];
         let mut current_id = 1;
         let mut stack = Vec::new();
 
         for (i, j, idx) in self.iter_morton() {
-            if self.cells[idx].wall && object_ids[idx] == 0 {
-                // New object found
+            if self.cells[idx].cell_type == Cell2Type::Solid && object_ids[idx] == 0 {
+                // Nouvel objet trouvé
                 object_ids[idx] = current_id;
                 stack.push((i, j));
 
-                // Exploration of the object using Depth-First Search (DFS)
+                // Exploration de l'objet par parcours en profondeur (DFS)
                 while let Some((ci, cj)) = stack.pop() {
                     let neighbors = [
-                        (ci.wrapping_sub(1), cj), // left
-                        (ci + 1, cj),             // right
-                        (ci, cj.wrapping_sub(1)), // down
-                        (ci, cj + 1),             // top
+                        (ci.wrapping_sub(1), cj), // gauche
+                        (ci + 1, cj),            // droite
+                        (ci, cj.wrapping_sub(1)), // bas
+                        (ci, cj + 1),            // haut
                     ];
 
                     for &(ni, nj) in &neighbors {
-                        if let Some(nidx) = self.try_index(ni, nj) {
-                            if self.cells[nidx].wall && object_ids[nidx] == 0 {
+                        if let Some(nidx) = self.try_idx(ni, nj) {
+                            if self.cells[nidx].cell_type == Cell2Type::Solid && object_ids[nidx] == 0 {
                                 object_ids[nidx] = current_id;
                                 stack.push((ni, nj));
                             }
@@ -130,7 +140,7 @@ impl Grid {
         object_ids
     }
 
-    /// Computes total forces on each object
+    /// Calcule les forces totales sur chaque objet
     pub fn compute_object_forces(&self) -> Vec<ObjectForce> {
         let cell_forces = self.compute_wall_forces();
         let object_ids = self.identify_objects();
@@ -140,52 +150,52 @@ impl Grid {
             return Vec::new();
         }
 
-        // Initialization of objects accumulators
+        // Initialisation des accumulateurs d'objets
         let mut objects = Vec::with_capacity(max_id);
         for id in 1..=max_id {
             objects.push(ObjectForce {
                 id,
-                center_of_mass: Vector2::default(),
-                total_force: Vector2::default(),
+                center_of_mass: Vector22::zeros(),
+                total_force: Vector22::zeros(),
                 torque: 0.0,
                 cell_count: 0,
             });
         }
 
-        // For each wall cell, we accumulate the forces and the center of mass
+        // Pour chaque cellule solide, on accumule les forces et le centre de masse
         for (i, j, idx) in self.iter_morton() {
-            if self.cells[idx].wall {
+            if self.cells[idx].cell_type == Cell2Type::Solid {
                 let obj_id = object_ids[idx];
                 if obj_id > 0 {
                     let obj_idx = obj_id - 1;
 
-                    // Accumulation in a center of mass
+                    // Accumulation du centre de masse
                     objects[obj_idx].center_of_mass.x += i as f32;
                     objects[obj_idx].center_of_mass.y += j as f32;
                     objects[obj_idx].cell_count += 1;
 
-                    // Forces accumulation
+                    // Accumulation des forces
                     objects[obj_idx].total_force.x += cell_forces[idx].x;
                     objects[obj_idx].total_force.y += cell_forces[idx].y;
                 }
             }
         }
 
-        // Final computation of the center of mass and torque
+        // Calcul final du centre de masse et du couple
         for obj in &mut objects {
             if obj.cell_count > 0 {
-                // Process center of mass
+                // Traitement du centre de masse
                 obj.center_of_mass.x /= obj.cell_count as f32;
                 obj.center_of_mass.y /= obj.cell_count as f32;
 
-                // Recalculating torque
+                // Recalcul du couple (torque)
                 for (i, j, idx) in self.iter_morton() {
-                    if self.cells[idx].wall && object_ids[idx] == obj.id {
+                    if self.cells[idx].cell_type == Cell2Type::Solid && object_ids[idx] == obj.id {
                         // Vecteur du centre de masse à la cellule
                         let r_x = i as f32 - obj.center_of_mass.x;
                         let r_y = j as f32 - obj.center_of_mass.y;
 
-                        // 2D Vectorial product : r × F = r_x*F_y - r_y*F_x
+                        // Produit vectoriel 2D : r × F = r_x*F_y - r_y*F_x
                         obj.torque += r_x * cell_forces[idx].y - r_y * cell_forces[idx].x;
                     }
                 }
@@ -195,10 +205,25 @@ impl Grid {
         objects
     }
 
+    /// Calcule la magnitude d'un vecteur Vector22
+    pub fn magnitude(v: &Vector22) -> f32 {
+        (v.x * v.x + v.y * v.y).sqrt()
+    }
 
+    /// Normalise un vecteur Vector22
+    pub fn normalize(v: &Vector22) -> Vector22 {
+        let mag = Self::magnitude(v);
+        if mag > 1e-6 {
+            Vector22 {
+                x: v.x / mag,
+                y: v.y / mag,
+            }
+        } else {
+            Vector22::zeros()
+        }
+    }
 
-
-    /// Identifies objects, compute forces and print them
+    /// Identifie les objets, calcule les forces et les affiche
     pub fn print_object_forces(&self) {
         let objects = self.compute_object_forces();
 
@@ -209,7 +234,7 @@ impl Grid {
 
         println!("\n=== Forces sur les objets ===");
         for obj in &objects {
-            let force_magnitude = obj.total_force.magnitude();
+            let force_magnitude = Self::magnitude(&obj.total_force);
 
             println!("Objet #{} :", obj.id);
             println!("  - Nombre de cellules: {}", obj.cell_count);
@@ -218,12 +243,12 @@ impl Grid {
                      obj.total_force.x, obj.total_force.y, force_magnitude);
             println!("  - Moment de force: {:.4}", obj.torque);
 
-            // Principal direction of the force
+            // Direction principale de la force
             if force_magnitude > 0.001 {
-                let direction = obj.total_force.normalize();
+                let direction = Self::normalize(&obj.total_force);
                 println!("  - Direction de la force: ({:.2}, {:.2})", direction.x, direction.y);
 
-                // Approximation of the angle (only for visualization purposes)
+                // Approximation de l'angle (à des fins de visualisation uniquement)
                 let angle = direction.y.atan2(direction.x) * 180.0 / std::f32::consts::PI;
                 let direction_desc = match angle {
                     a if a > -22.5 && a <= 22.5 => "→ (droite)",
@@ -243,7 +268,4 @@ impl Grid {
         }
         println!("===================\n \n");
     }
-
-
-
 }

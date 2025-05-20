@@ -73,8 +73,8 @@ impl Grid {
             }
 
             // Determine the "upwind" cell based on a velocity direction
-            let vx = self.cells[idx].velocity.x;
-            let vy = self.cells[idx].velocity.y;
+            let vx = self.cells[idx].velocity_x;
+            let vy = self.cells[idx].velocity_y;
 
             let sign_x = if vx >= 0.0 { 1 } else { -1 };
             let sign_y = if vy >= 0.0 { 1 } else { -1 };
@@ -98,8 +98,8 @@ impl Grid {
         // Compute coefficients and fluxes
         for &(i, j, idx, i_up, j_up, idx_up) in &cells_to_process {
             // Retrieve cell data
-            let vx = self.cells[idx].velocity.x;
-            let vy = self.cells[idx].velocity.y;
+            let vx = self.cells[idx].velocity_x;
+            let vy = self.cells[idx].velocity_y;
             let u_i = self.cells[idx].density;
             let u_up = self.cells[idx_up].density;
             let du_i_x = self.cells[idx].density_x;
@@ -216,8 +216,8 @@ impl Grid {
             }
 
             // Spatial displacement (characteristic)
-            let vx = self.cells[idx].velocity.x;
-            let vy = self.cells[idx].velocity.y;
+            let vx = self.cells[idx].velocity_x;
+            let vy = self.cells[idx].velocity_y;
             let e_x = -vx * dt0;
             let e_y = -vy * dt0;
 
