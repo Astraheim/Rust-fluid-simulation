@@ -1,5 +1,5 @@
 use crate::conditions::*;
-use crate::grid::{Grid, Vector2, ObjectForce};
+use crate::grid::{Grid, ObjectForce, Vector2};
 // Last update to rendu_code_tex: 2025-05-02
 // last modif: 2025-05-02
 
@@ -34,11 +34,7 @@ ENG :
     Graphical visualization of the forces would help with debugging and validation.
 */
 
-
-
 impl Grid {
-
-
     /// Process the forces of pressure caused by fluid on the walls of the grid
     pub fn compute_wall_forces(&self) -> Vec<Vector2> {
         let h = 1.0 / N; // Size of a cell
@@ -196,9 +192,6 @@ impl Grid {
         objects
     }
 
-
-
-
     /// Identifies objects, compute forces and print them
     pub fn print_object_forces(&self) {
         let objects = self.compute_object_forces();
@@ -214,15 +207,23 @@ impl Grid {
 
             println!("Objet #{} :", obj.id);
             println!("  - Nombre de cellules: {}", obj.cell_count);
-            println!("  - Centre de masse: ({:.2}, {:.2})", obj.center_of_mass.x, obj.center_of_mass.y);
-            println!("  - Force totale: ({:.4}, {:.4}) [magnitude: {:.4}]",
-                     obj.total_force.x, obj.total_force.y, force_magnitude);
+            println!(
+                "  - Centre de masse: ({:.2}, {:.2})",
+                obj.center_of_mass.x, obj.center_of_mass.y
+            );
+            println!(
+                "  - Force totale: ({:.4}, {:.4}) [magnitude: {:.4}]",
+                obj.total_force.x, obj.total_force.y, force_magnitude
+            );
             println!("  - Moment de force: {:.4}", obj.torque);
 
             // Principal direction of the force
             if force_magnitude > 0.001 {
                 let direction = obj.total_force.normalize();
-                println!("  - Direction de la force: ({:.2}, {:.2})", direction.x, direction.y);
+                println!(
+                    "  - Direction de la force: ({:.2}, {:.2})",
+                    direction.x, direction.y
+                );
 
                 // Approximation of the angle (only for visualization purposes)
                 let angle = direction.y.atan2(direction.x) * 180.0 / std::f32::consts::PI;
@@ -244,7 +245,4 @@ impl Grid {
         }
         println!("===================\n \n");
     }
-
-
-
 }

@@ -1,5 +1,5 @@
 //use crate::conditions::*;
-use crate::grid2::{Grid2, Vector22,Cell2Type};
+use crate::grid2::{Cell2Type, Grid2, Vector22};
 // Last update to rendu_code_tex: 2025-05-02
 // last modif: 2025-05-13
 
@@ -34,16 +34,14 @@ ENG :
     Graphical visualization of the forces would help with debugging and validation.
 */
 
-
-
 // Structure pour représenter les forces sur un objet solide
 #[derive(Clone, Debug)]
 pub struct ObjectForce {
-    pub id: usize,               // Identifiant unique de l'objet
+    pub id: usize,                // Identifiant unique de l'objet
     pub center_of_mass: Vector22, // Centre de masse de l'objet
     pub total_force: Vector22,    // Force totale appliquée sur l'objet
-    pub torque: f32,             // Moment de force (couple)
-    pub cell_count: usize,       // Nombre de cellules composant l'objet
+    pub torque: f32,              // Moment de force (couple)
+    pub cell_count: usize,        // Nombre de cellules composant l'objet
 }
 
 impl Grid2 {
@@ -60,9 +58,9 @@ impl Grid2 {
             // Directions autour des cellules solides
             let neighbors = [
                 (i.wrapping_sub(1), j, Vector22::new(-1.0, 0.0)), // gauche
-                (i + 1, j, Vector22::new(1.0, 0.0)),             // droite
+                (i + 1, j, Vector22::new(1.0, 0.0)),              // droite
                 (i, j.wrapping_sub(1), Vector22::new(0.0, -1.0)), // bas
-                (i, j + 1, Vector22::new(0.0, 1.0)),             // haut
+                (i, j + 1, Vector22::new(0.0, 1.0)),              // haut
             ];
 
             for &(ni, nj, normal) in &neighbors {
@@ -118,14 +116,16 @@ impl Grid2 {
                 while let Some((ci, cj)) = stack.pop() {
                     let neighbors = [
                         (ci.wrapping_sub(1), cj), // gauche
-                        (ci + 1, cj),            // droite
+                        (ci + 1, cj),             // droite
                         (ci, cj.wrapping_sub(1)), // bas
-                        (ci, cj + 1),            // haut
+                        (ci, cj + 1),             // haut
                     ];
 
                     for &(ni, nj) in &neighbors {
                         if let Some(nidx) = self.try_idx(ni, nj) {
-                            if self.cells[nidx].cell_type == Cell2Type::Solid && object_ids[nidx] == 0 {
+                            if self.cells[nidx].cell_type == Cell2Type::Solid
+                                && object_ids[nidx] == 0
+                            {
                                 object_ids[nidx] = current_id;
                                 stack.push((ni, nj));
                             }
@@ -238,15 +238,23 @@ impl Grid2 {
 
             println!("Objet #{} :", obj.id);
             println!("  - Nombre de cellules: {}", obj.cell_count);
-            println!("  - Centre de masse: ({:.2}, {:.2})", obj.center_of_mass.x, obj.center_of_mass.y);
-            println!("  - Force totale: ({:.4}, {:.4}) [magnitude: {:.4}]",
-                     obj.total_force.x, obj.total_force.y, force_magnitude);
+            println!(
+                "  - Centre de masse: ({:.2}, {:.2})",
+                obj.center_of_mass.x, obj.center_of_mass.y
+            );
+            println!(
+                "  - Force totale: ({:.4}, {:.4}) [magnitude: {:.4}]",
+                obj.total_force.x, obj.total_force.y, force_magnitude
+            );
             println!("  - Moment de force: {:.4}", obj.torque);
 
             // Direction principale de la force
             if force_magnitude > 0.001 {
                 let direction = Self::normalize(&obj.total_force);
-                println!("  - Direction de la force: ({:.2}, {:.2})", direction.x, direction.y);
+                println!(
+                    "  - Direction de la force: ({:.2}, {:.2})",
+                    direction.x, direction.y
+                );
 
                 // Approximation de l'angle (à des fins de visualisation uniquement)
                 let angle = direction.y.atan2(direction.x) * 180.0 / std::f32::consts::PI;
