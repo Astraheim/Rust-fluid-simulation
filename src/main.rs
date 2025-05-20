@@ -24,7 +24,7 @@ fn main() {
         
         let mut grid = Grid::new();
         
-        //Grid::place_random_objects(&mut grid, 9, 15.0, 20.0);
+        Grid::place_random_objects(&mut grid, 9, 15.0, 20.0);
         //Grid::circle(&mut grid, 75,120,30.9);
         
         run_simulation(&mut grid, 0);

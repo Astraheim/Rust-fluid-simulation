@@ -35,7 +35,7 @@ pub const DENS_ADV_FAC: f32 = 0.1; // Factor for density advection
 pub const VEL_STEP: &str = "2"; // "1" for vel_step, "2" for vel2_step, "cip_csl4" for vel_step_cip_csl4
 pub const PROJECT : &str = "1"; // "1" for project, "2" for project2
 pub const KARMAN_VORTEX: bool = false; // Use Karman vortex (at least tries to)
-pub const CENTER_SOURCE: bool = false; // Use a circular source in the center of the grid
+pub const CENTER_SOURCE: bool = true; // Use a circular source in the center of the grid
 pub const CENTER_SOURCE_TYPE: bool = false; // "false" for a circular output, "true" for a radial output (like a fan)
 pub const CENTER_SOURCE_RADIUS: f32 = N/40.0; // Radius of the center source
 pub const CENTER_SOURCE_DENSITY: f32 = 0.15; // Density of the center source
@@ -45,7 +45,7 @@ pub const CENTER_SOURCE_VELOCITY: f32 = 0.5; // Velocity of the center source
 
 
 // Flow parameters
-pub const AIR_FLOW: bool = true; // Simulate air flow
+pub const AIR_FLOW: bool = false; // Simulate air flow
 pub const FLOW_DIRECTION: &str = "right"; //"left","right","up","down" // Direction of the flow (for now only right is properly implemented)
 pub const FLOW_SPACE: usize = 4; // Space between two rows of flow
 pub const FLOW_DENSITY: f32 = 25.0; // Density of the flow
@@ -67,7 +67,7 @@ pub const SIZE: f32 = (N + 2.0) * (N + 2.0); // IT WILL BE AN INTEGER \\
 
 
 // Physical parameters
-pub const DT: f32 = 1.0/600.0; // Time step (in seconds)
+pub const DT: f32 = 1.0/60.0; // Time step (in seconds)
 pub fn gravity() -> Vector22 {
     let gravity: Vector22 = Vector22::new(0.0, 0.0); // Gravity (in m/s^)
     gravity
