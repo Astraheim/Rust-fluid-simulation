@@ -1,7 +1,6 @@
 use crate::conditions::*;
 use crate::grid::{Grid, Vector2};
 
-
 /*
 FR :
     Fonctionnalités clés de l'implémentation CIP-CSL4
@@ -39,7 +38,6 @@ ENG :
 
 
 */
-
 
 impl Grid {
     // CIP-CSL4 method for density advection
@@ -96,7 +94,7 @@ impl Grid {
         }
 
         // Compute coefficients and fluxes
-        for &(i, j, idx, i_up, j_up, idx_up) in &cells_to_process {
+        for &(_i, j, idx, _i_up, _j_up, idx_up) in &cells_to_process {
             // Retrieve cell data
             let vx = self.cells[idx].velocity_x;
             let vy = self.cells[idx].velocity_y;
@@ -134,48 +132,44 @@ impl Grid {
             let v_sgn_y = if vy >= 0.0 { 1.0 } else { -1.0 };
 
             // Compute coefficients for the X direction
-            a_coeffs[idx].x = (-2.5 / dx5) * (6.0 * (u_up + u_i) * dx_i
-                - (du_up_x - du_i_x) * dx2
-                + 12.0 * v_sgn_x * r_c);
+            a_coeffs[idx].x = (-2.5 / dx5)
+                * (6.0 * (u_up + u_i) * dx_i - (du_up_x - du_i_x) * dx2 + 12.0 * v_sgn_x * r_c);
 
-            b_coeffs[idx].x = (4.0 / dx4) * ((7.0 * u_up + 8.0 * u_i) * dx_i
-                - (du_up_x - 1.5 * du_i_x) * dx2
-                + 15.0 * v_sgn_x * r_c);
+            b_coeffs[idx].x = (4.0 / dx4)
+                * ((7.0 * u_up + 8.0 * u_i) * dx_i - (du_up_x - 1.5 * du_i_x) * dx2
+                    + 15.0 * v_sgn_x * r_c);
 
-            c_coeffs[idx].x = (-1.5 / dx3) * (4.0 * (2.0 * u_up + 3.0 * u_i) * dx_i
-                - (du_up_x - 3.0 * du_i_x) * dx2
-                + 20.0 * v_sgn_x * r_c);
+            c_coeffs[idx].x = (-1.5 / dx3)
+                * (4.0 * (2.0 * u_up + 3.0 * u_i) * dx_i - (du_up_x - 3.0 * du_i_x) * dx2
+                    + 20.0 * v_sgn_x * r_c);
 
             // Compute coefficients for the Y direction
-            a_coeffs[idx].y = (-2.5 / dx5) * (6.0 * (u_up + u_i) * dx_i
-                - (du_up_y - du_i_y) * dx2
-                + 12.0 * v_sgn_y * r_c);
+            a_coeffs[idx].y = (-2.5 / dx5)
+                * (6.0 * (u_up + u_i) * dx_i - (du_up_y - du_i_y) * dx2 + 12.0 * v_sgn_y * r_c);
 
-            b_coeffs[idx].y = (4.0 / dx4) * ((7.0 * u_up + 8.0 * u_i) * dx_i
-                - (du_up_y - 1.5 * du_i_y) * dx2
-                + 15.0 * v_sgn_y * r_c);
+            b_coeffs[idx].y = (4.0 / dx4)
+                * ((7.0 * u_up + 8.0 * u_i) * dx_i - (du_up_y - 1.5 * du_i_y) * dx2
+                    + 15.0 * v_sgn_y * r_c);
 
-            c_coeffs[idx].y = (-1.5 / dx3) * (4.0 * (2.0 * u_up + 3.0 * u_i) * dx_i
-                - (du_up_y - 3.0 * du_i_y) * dx2
-                + 20.0 * v_sgn_y * r_c);
+            c_coeffs[idx].y = (-1.5 / dx3)
+                * (4.0 * (2.0 * u_up + 3.0 * u_i) * dx_i - (du_up_y - 3.0 * du_i_y) * dx2
+                    + 20.0 * v_sgn_y * r_c);
 
             // Compute flux across faces (X component)
-            dr[idx] = -1.0 * (
-                e5_x * a_coeffs[idx].x / 5.0 +
-                    e4_x * b_coeffs[idx].x / 4.0 +
-                    e3_x * c_coeffs[idx].x / 3.0 +
-                    e2_x * du_i_x / 2.0 +
-                    e_x * u_i
-            );
+            dr[idx] = -1.0
+                * (e5_x * a_coeffs[idx].x / 5.0
+                    + e4_x * b_coeffs[idx].x / 4.0
+                    + e3_x * c_coeffs[idx].x / 3.0
+                    + e2_x * du_i_x / 2.0
+                    + e_x * u_i);
 
             // Add Y component to the flux
-            dr[idx] += -1.0 * (
-                e5_y * a_coeffs[idx].y / 5.0 +
-                    e4_y * b_coeffs[idx].y / 4.0 +
-                    e3_y * c_coeffs[idx].y / 3.0 +
-                    e2_y * du_i_y / 2.0 +
-                    e_y * u_i
-            );
+            dr[idx] += -1.0
+                * (e5_y * a_coeffs[idx].y / 5.0
+                    + e4_y * b_coeffs[idx].y / 4.0
+                    + e3_y * c_coeffs[idx].y / 3.0
+                    + e2_y * du_i_y / 2.0
+                    + e_y * u_i);
         }
 
         // Collect information for mass updates
@@ -186,8 +180,16 @@ impl Grid {
             }
 
             // Compute indices of adjacent cells
-            let idx_right = if i < N as usize { self.to_index(i + 1, j) } else { idx };
-            let idx_top = if j < N as usize { self.to_index(i, j + 1) } else { idx };
+            let idx_right = if i < N as usize {
+                self.to_index(i + 1, j)
+            } else {
+                idx
+            };
+            let idx_top = if j < N as usize {
+                self.to_index(i, j + 1)
+            } else {
+                idx
+            };
 
             let mut delta_mass = 0.0;
 
@@ -227,17 +229,17 @@ impl Grid {
 
             let e2_y = e_y * e_y;
             let e3_y = e_y * e2_y;
-            
-            // Compute new derivatives
-            let new_density_x = 4.0 * a_coeffs[idx].x * e3_x +
-                3.0 * b_coeffs[idx].x * e2_x +
-                2.0 * c_coeffs[idx].x * e_x +
-                self.cells[idx].density_x;
 
-            let new_density_y = 4.0 * a_coeffs[idx].y * e3_y +
-                3.0 * b_coeffs[idx].y * e2_y +
-                2.0 * c_coeffs[idx].y * e_y +
-                self.cells[idx].density_y;
+            // Compute new derivatives
+            let new_density_x = 4.0 * a_coeffs[idx].x * e3_x
+                + 3.0 * b_coeffs[idx].x * e2_x
+                + 2.0 * c_coeffs[idx].x * e_x
+                + self.cells[idx].density_x;
+
+            let new_density_y = 4.0 * a_coeffs[idx].y * e3_y
+                + 3.0 * b_coeffs[idx].y * e2_y
+                + 2.0 * c_coeffs[idx].y * e_y
+                + self.cells[idx].density_y;
 
             // Convert mass to density
             let new_density = cell_masses[idx] / cell_volume;
@@ -331,8 +333,10 @@ impl Grid {
                 let density_top = self.cells[self.to_index(i, j + 1)].density;
 
                 // Second derivatives
-                update.density_xx = Some((density_right - 2.0 * density_current + density_left) / (h * h));
-                update.density_yy = Some((density_top - 2.0 * density_current + density_bottom) / (h * h));
+                update.density_xx =
+                    Some((density_right - 2.0 * density_current + density_left) / (h * h));
+                update.density_yy =
+                    Some((density_top - 2.0 * density_current + density_bottom) / (h * h));
 
                 // Cross derivative
                 let density_top_right = self.cells[self.to_index(i + 1, j + 1)].density;
@@ -340,7 +344,11 @@ impl Grid {
                 let density_bottom_right = self.cells[self.to_index(i + 1, j - 1)].density;
                 let density_bottom_left = self.cells[self.to_index(i - 1, j - 1)].density;
 
-                update.density_xy = Some((density_top_right - density_top_left - density_bottom_right + density_bottom_left) / (4.0 * h * h));
+                update.density_xy = Some(
+                    (density_top_right - density_top_left - density_bottom_right
+                        + density_bottom_left)
+                        / (4.0 * h * h),
+                );
             }
 
             updates.push(update);

@@ -3,17 +3,15 @@ use crate::grid::*;
 use crate::grid2::*;
 use minifb::{Window, WindowOptions};
 use std::time::Instant;
-use crate::conditions;
-use crate::grid2::*;
 
 /*
 FR :
-    Ce fichier contient la boucle principale de la simulation ainsi que les fonctions associées au rendu graphique, à l’interaction souris, 
-    à la coloration des cellules et au tracé de vecteurs. 
-    La fonction `run_simulation` gère le rendu de la grille à chaque pas de temps, l’injection de fluide, le tracé des murs à la souris, 
+    Ce fichier contient la boucle principale de la simulation ainsi que les fonctions associées au rendu graphique, à l’interaction souris,
+    à la coloration des cellules et au tracé de vecteurs.
+    La fonction `run_simulation` gère le rendu de la grille à chaque pas de temps, l’injection de fluide, le tracé des murs à la souris,
     et les différentes sources (flux d’air, vortex de Kármán, source centrale).
     Elle appelle aussi les étapes de simulation selon le mode choisi ('vel_step', `vel2_step', `cip_csl4').
-    
+
     Fonctions principales :
     - `run_simulation` : boucle temps, dessin, interaction, injection, calcul
     - `vorticity` : calcule la vorticity locale pour la coloration
@@ -25,9 +23,9 @@ FR :
     - Touche P : met la simulation en pause ou la redémarre
 
 ENG :
-    This file contains the main simulation loop along with graphical rendering, mouse interaction, 
+    This file contains the main simulation loop along with graphical rendering, mouse interaction,
     cell color mapping, and vector drawing functions.
-    The `run_simulation` function handles grid rendering at each timestep, fluid injection, 
+    The `run_simulation` function handles grid rendering at each timestep, fluid injection,
     mouse wall drawing, and various sources (air flow, Kármán vortex, central source).
     It also calls the appropriate velocity step method based on the selected mode ('vel_step', `vel2_step', `cip_csl4').
 
@@ -42,8 +40,6 @@ ENG :
     - P key : pauses/resumes the simulation
 */
 
-
-
 /// Vorticity calculation for colourization (safe bounds)
 fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
     let dx = DX;
@@ -54,9 +50,9 @@ fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
     let jm = j.saturating_sub(1).min(N as usize);
     let jp = (j + 1).min(N as usize);
 
-    let idx_up    = grid.to_index(i, jp);
-    let idx_down  = grid.to_index(i, jm);
-    let idx_left  = grid.to_index(im, j);
+    let idx_up = grid.to_index(i, jp);
+    let idx_down = grid.to_index(i, jm);
+    let idx_left = grid.to_index(im, j);
     let idx_right = grid.to_index(ip, j);
 
     let du_dy = (grid.cells[idx_up].velocity_x - grid.cells[idx_down].velocity_x) / (2.0 * dy);
@@ -66,7 +62,15 @@ fn vorticity(grid: &Grid, i: usize, j: usize) -> f32 {
 }
 
 /// Draw a line using Bresenham's algorithm
-pub fn draw_line_with_color(buffer: &mut [u32], width: usize, x0: usize, y0: usize, x1: usize, y1: usize, color: u32) {
+pub fn draw_line_with_color(
+    buffer: &mut [u32],
+    width: usize,
+    x0: usize,
+    y0: usize,
+    x1: usize,
+    y1: usize,
+    color: u32,
+) {
     let dx = (x1 as isize - x0 as isize).abs();
     let dy = -(y1 as isize - y0 as isize).abs();
     let mut err = dx + dy;
@@ -79,7 +83,9 @@ pub fn draw_line_with_color(buffer: &mut [u32], width: usize, x0: usize, y0: usi
         if x >= 0 && x < width as isize && y >= 0 && y < width as isize {
             buffer[(y as usize) * width + (x as usize)] = color;
         }
-        if x == x1 as isize && y == y1 as isize { break; }
+        if x == x1 as isize && y == y1 as isize {
+            break;
+        }
         let e2 = 2 * err;
         if e2 >= dy {
             err += dy;
@@ -121,7 +127,9 @@ pub fn bresenham_line(x0: usize, y0: usize, x1: usize, y1: usize) -> Vec<(usize,
     loop {
         points.push((x as usize, y as usize));
 
-        if x == x1 as isize && y == y1 as isize { break; }
+        if x == x1 as isize && y == y1 as isize {
+            break;
+        }
 
         let e2 = 2 * err;
         if e2 > -dy {
@@ -144,12 +152,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
     let height = WINDOW_HEIGHT;
     let mut buffer: Vec<u32> = vec![0; width * height];
 
-    let mut window = Window::new(
-        "Grid Simulation",
-        width,
-        height,
-        WindowOptions::default(),
-    )
+    let mut window = Window::new("Grid Simulation", width, height, WindowOptions::default())
         .unwrap_or_else(|e| panic!("{}", e));
 
     // Enable key repeat for a better user experience
@@ -171,7 +174,14 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
         // Check for a pause key (P)
         if window.is_key_pressed(minifb::Key::P, minifb::KeyRepeat::No) {
             paused = !paused;
-            println!("Simulation {}", if paused { "PAUSED, PRESS 'P' TO RESUME "} else { "RUNNING, PRESS 'P' TO PAUSE" });
+            println!(
+                "Simulation {}",
+                if paused {
+                    "PAUSED, PRESS 'P' TO RESUME "
+                } else {
+                    "RUNNING, PRESS 'P' TO PAUSE"
+                }
+            );
         }
 
         // Handle mouse events
@@ -253,7 +263,7 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 }
 
                 // Choose color based on mode
-                let colour = if PAINT_VORTICITY == true{
+                let colour = if PAINT_VORTICITY == true {
                     let vort = vorticity(grid, i, j);
                     let iv = ((vort.abs().min(5.0)) * 25.0) as u32;
                     if vort > 0.0 {
@@ -273,12 +283,12 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
                 }
 
                 // Draw a velocity vector
-                if DRAW_VELOCITY_VECTORS == true{
+                if DRAW_VELOCITY_VECTORS == true {
                     let vx = grid.cells[idx].velocity_x;
                     let vy = grid.cells[idx].velocity_y;
                     let cx = x0 + (DX as usize) / 2;
                     let cy = y0 + (DY as usize) / 2;
-                    let mag = (vx*vx + vy*vy).sqrt().max(1e-5);
+                    let mag = (vx * vx + vy * vy).sqrt().max(1e-5);
                     let scale = VECTOR_SIZE_FACTOR / mag;
                     let ex = (cx as f32 + vx * scale) as usize;
                     let ey = (cy as f32 + vy * scale) as usize;
@@ -300,27 +310,29 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
         step += 1;
 
         // Flow injection or custom source
-        if AIR_FLOW ==true {
-            let hole_pos: Vec<usize> = (1..=N as usize)
-                .filter(|&x| x % FLOW_SPACE == 0)
-                .collect();
+        if AIR_FLOW == true {
+            let hole_pos: Vec<usize> = (1..=N as usize).filter(|&x| x % FLOW_SPACE == 0).collect();
             grid.initialize_wind_tunnel(FLOW_DENSITY, &hole_pos);
-        } else if KARMAN_VORTEX == true{
-            if GRID != "1"{
+        } else if KARMAN_VORTEX == true {
+            if GRID != "1" {
                 panic!("Karman vortex only works with grid 1");
             }
             for i in 0..=50 {
-                Grid::cell_init(grid, 5, 127+i-25, 0.3, 0.0, 20.0);
+                Grid::cell_init(grid, 5, 127 + i - 25, 0.3, 0.0, 20.0);
 
                 // for karman vortex
-                Grid::velocity_init(grid, 10, 127+i-25, 0.9, 0.0);
+                Grid::velocity_init(grid, 10, 127 + i - 25, 0.9, 0.0);
             }
-        } else if CENTER_SOURCE == true{
-            grid.center_source(CENTER_SOURCE_RADIUS, CENTER_SOURCE_DENSITY, CENTER_SOURCE_VELOCITY, CENTER_SOURCE_TYPE);
+        } else if CENTER_SOURCE == true {
+            grid.center_source(
+                CENTER_SOURCE_RADIUS,
+                CENTER_SOURCE_DENSITY,
+                CENTER_SOURCE_VELOCITY,
+                CENTER_SOURCE_TYPE,
+            );
         } else {
             continue;
         }
-
 
         // Perform simulation step
         if GRID == "1" {
@@ -337,26 +349,31 @@ pub fn run_simulation(grid: &mut Grid, mut step: i32) {
             panic!("Invalid GRID value");
         }
 
-        if PRINT_FORCES == true{
-            if GRID != "1"{
+        if PRINT_FORCES == true {
+            if GRID != "1" {
                 panic!("PRINT_FORCES only works with grid 1");
             }
             grid.print_object_forces()
         }
 
         // Optionally print timing (this one especially for performance purposes)
-        if step == 100  {
+        if step == 100 {
             let elapsed = start.elapsed();
-            println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour 100 vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", elapsed);
+            println!(
+                "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Temps pour 100 vel_step: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ",
+                elapsed
+            );
         }
         // Optionally print timing (to see time elapsed after SIM_STEPS steps)
         if step == SIM_STEPS as i32 {
             let elapsed = start.elapsed();
-            println!("§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§ \n Completed {} steps in {:?}\n§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§", SIM_STEPS, elapsed);
+            println!(
+                "§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§ \n Completed {} steps in {:?}\n§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§",
+                SIM_STEPS, elapsed
+            );
         }
     }
 }
-
 
 pub fn run_simulation2(grid2: &mut Grid2) {
     let start = Instant::now();
@@ -369,7 +386,8 @@ pub fn run_simulation2(grid2: &mut Grid2) {
         width,
         height,
         WindowOptions::default(),
-    ).unwrap_or_else(|e| panic!("{}", e));
+    )
+    .unwrap_or_else(|e| panic!("{}", e));
 
     // Enable key repeat for a better user experience
     window.set_key_repeat_delay(0.25);
@@ -392,18 +410,25 @@ pub fn run_simulation2(grid2: &mut Grid2) {
         // Check for a pause key (P)
         if window.is_key_pressed(minifb::Key::P, minifb::KeyRepeat::No) {
             paused = !paused;
-            println!("Simulation {}", if paused { "PAUSED, PRESS 'P' TO RESUME "} else { "RUNNING, PRESS 'P' TO PAUSE" });
+            println!(
+                "Simulation {}",
+                if paused {
+                    "PAUSED, PRESS 'P' TO RESUME "
+                } else {
+                    "RUNNING, PRESS 'P' TO PAUSE"
+                }
+            );
         }
-        if window.is_key_pressed(minifb::Key::V, minifb::KeyRepeat::Yes){
+        if window.is_key_pressed(minifb::Key::V, minifb::KeyRepeat::Yes) {
             grid2.vel_step(DT, gravity);
         }
-        if window.is_key_pressed(minifb::Key::D, minifb::KeyRepeat::Yes){
+        if window.is_key_pressed(minifb::Key::D, minifb::KeyRepeat::Yes) {
             grid2.advect_density(DT);
         }
-        if window.is_key_pressed(minifb::Key::I, minifb::KeyRepeat::Yes){
+        if window.is_key_pressed(minifb::Key::I, minifb::KeyRepeat::Yes) {
             grid2.solve_incompressibility(DT, 20, 1000.0, 1.9);
         }
-        if window.is_key_pressed(minifb::Key::A, minifb::KeyRepeat::Yes){
+        if window.is_key_pressed(minifb::Key::A, minifb::KeyRepeat::Yes) {
             grid2.advect_velocity(DT);
         }
 
@@ -504,9 +529,9 @@ pub fn run_simulation2(grid2: &mut Grid2) {
                 let vort = calculate_vorticity2(grid2, i, j);
                 let iv = ((vort.abs().min(5.0)) * 25.0) as u32;
                 if vort > 0.0 {
-                    (iv << 8) | 0x0000FF  // Blue for positive vorticity
+                    (iv << 8) | 0x0000FF // Blue for positive vorticity
                 } else {
-                    (iv << 16) | 0xFF0000  // Red for negative vorticity
+                    (iv << 16) | 0xFF0000 // Red for negative vorticity
                 }
             } else {
                 density_color(cell.density.back)
@@ -527,7 +552,7 @@ pub fn run_simulation2(grid2: &mut Grid2) {
                 let vy = cell.velocity.back.y;
                 let cx = x0 + cell_size / 2;
                 let cy = y0 + cell_size / 2;
-                let mag = (vx*vx + vy*vy).sqrt().max(1e-5);
+                let mag = (vx * vx + vy * vy).sqrt().max(1e-5);
                 let scale = VECTOR_SIZE_FACTOR / mag;
                 let ex = (cx as f32 + vx * scale) as usize;
                 let ey = (cy as f32 + vy * scale) as usize;
@@ -552,12 +577,10 @@ pub fn run_simulation2(grid2: &mut Grid2) {
         step += 1;
 
         // Apply sources based on settings
-        if AIR_FLOW == true{
+        if AIR_FLOW == true {
             let _cell_size = grid2.cell_size;
-            let hole_pos: Vec<usize> = (1..=N as usize)
-                .filter(|&x| x % FLOW_SPACE == 0)
-                .collect();
-            
+            let hole_pos: Vec<usize> = (1..=N as usize).filter(|&x| x % FLOW_SPACE == 0).collect();
+
             grid2.initialize_wind_tunnel(FLOW_DENSITY, &*hole_pos, FLOW_VELOCITY);
 
             /*// Apply flow at inlet positions
@@ -572,7 +595,7 @@ pub fn run_simulation2(grid2: &mut Grid2) {
                     }
                 }
             }*/
-        } else if KARMAN_VORTEX == true{
+        } else if KARMAN_VORTEX == true {
             // Position for Karman vortex shedding (need to adjust for Grid2)
             let center_j = grid2.height / 2;
 
@@ -585,7 +608,7 @@ pub fn run_simulation2(grid2: &mut Grid2) {
             }
 
             // Add inlet flow
-            for j in (center_j-25)..(center_j+25) {
+            for j in (center_j - 25)..(center_j + 25) {
                 if grid2.in_simulation_bounds(5, j) {
                     if let Some(cell) = grid2.try_cell_mut_idx(5, j) {
                         if !cell.is_solid() {
@@ -596,20 +619,20 @@ pub fn run_simulation2(grid2: &mut Grid2) {
                     }
                 }
             }
-        } else if CENTER_SOURCE == true{
+        } else if CENTER_SOURCE == true {
             // Add central source
             let center_i = grid2.width / 2;
             let center_j = grid2.height / 2;
             let radius = CENTER_SOURCE_RADIUS as usize;
 
             // Apply a central source
-            for j in (center_j-radius)..(center_j+radius) {
-                for i in (center_i-radius)..(center_i+radius) {
+            for j in (center_j - radius)..(center_j + radius) {
+                for i in (center_i - radius)..(center_i + radius) {
                     if grid2.in_simulation_bounds(i, j) {
                         // Calculate distance from a center
                         let di = i as f32 - center_i as f32;
                         let dj = j as f32 - center_j as f32;
-                        let dist_sq = di*di + dj*dj;
+                        let dist_sq = di * di + dj * dj;
 
                         if dist_sq <= (radius as f32 * radius as f32) {
                             if let Some(cell) = grid2.try_cell_mut_idx(i, j) {
@@ -617,16 +640,21 @@ pub fn run_simulation2(grid2: &mut Grid2) {
                                     cell.density.back = CENTER_SOURCE_DENSITY;
 
                                     // Different source types
-                                    match CENTER_SOURCE_TYPE { //"false" for a circular output, "true" for a radial output (like a fan)
+                                    match CENTER_SOURCE_TYPE {
+                                        //"false" for a circular output, "true" for a radial output (like a fan)
                                         true => {
                                             let dist = dist_sq.sqrt().max(0.1);
-                                            cell.velocity.back.x = di / dist * CENTER_SOURCE_VELOCITY;
-                                            cell.velocity.back.y = dj / dist * CENTER_SOURCE_VELOCITY;
-                                        },
+                                            cell.velocity.back.x =
+                                                di / dist * CENTER_SOURCE_VELOCITY;
+                                            cell.velocity.back.y =
+                                                dj / dist * CENTER_SOURCE_VELOCITY;
+                                        }
                                         false => {
-                                            cell.velocity.back.x = -dj / radius as f32 * CENTER_SOURCE_VELOCITY;
-                                            cell.velocity.back.y = di / radius as f32 * CENTER_SOURCE_VELOCITY;
-                                        } 
+                                            cell.velocity.back.x =
+                                                -dj / radius as f32 * CENTER_SOURCE_VELOCITY;
+                                            cell.velocity.back.y =
+                                                di / radius as f32 * CENTER_SOURCE_VELOCITY;
+                                        }
                                     }
                                 }
                             }
@@ -639,7 +667,7 @@ pub fn run_simulation2(grid2: &mut Grid2) {
         // Perform a simulation step with Grid2
 
         //grid2.cell_init(100,100,0.0,0.0,30.0);
-        
+
         //grid2.vel_step(DT, gravity);
 
         /*grid2.apply_forces(DT, gravity);
@@ -657,12 +685,18 @@ pub fn run_simulation2(grid2: &mut Grid2) {
         // Optionally print timing (for performance analysis)
         if step == 100 {
             let elapsed = start.elapsed();
-            println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Time for 100 steps: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ", elapsed);
+            println!(
+                "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n Time for 100 steps: {:?} \n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ",
+                elapsed
+            );
         }
 
         if step == SIM_STEPS as i32 {
             let elapsed = start.elapsed();
-            println!("§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§ \n Completed {} steps in {:?}\n§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§", SIM_STEPS, elapsed);
+            println!(
+                "§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§ \n Completed {} steps in {:?}\n§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§§",
+                SIM_STEPS, elapsed
+            );
         }
     }
 }
@@ -675,15 +709,15 @@ fn calculate_vorticity2(grid: &Grid2, i: usize, j: usize) -> f32 {
     }
 
     // Check if we have all required neighboring cells
-    if i == 0 || j == 0 || i >= grid.width-1 || j >= grid.height-1 {
+    if i == 0 || j == 0 || i >= grid.width - 1 || j >= grid.height - 1 {
         return 0.0;
     }
 
     // Get velocity at neighboring cells
-    let vx_up = grid.cell_idx(i, j+1).velocity.back.x;
-    let vx_down = grid.cell_idx(i, j-1).velocity.back.x;
-    let vy_right = grid.cell_idx(i+1, j).velocity.back.y;
-    let vy_left = grid.cell_idx(i-1, j).velocity.back.y;
+    let vx_up = grid.cell_idx(i, j + 1).velocity.back.x;
+    let vx_down = grid.cell_idx(i, j - 1).velocity.back.x;
+    let vy_right = grid.cell_idx(i + 1, j).velocity.back.y;
+    let vy_left = grid.cell_idx(i - 1, j).velocity.back.y;
 
     // Calculate vorticity (curl of velocity field)
     let dvy_dx = (vy_right - vy_left) / (2.0 * grid.cell_size);

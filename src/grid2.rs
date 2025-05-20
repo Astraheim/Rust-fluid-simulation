@@ -20,14 +20,14 @@ impl Vector22 {
     pub fn add(&self, other: &Vector22) -> Vector22 {
         Vector22 {
             x: self.x + other.x,
-            y: self.y + other.y
+            y: self.y + other.y,
         }
     }
 
     pub fn scale(&self, factor: f32) -> Vector22 {
         Vector22 {
             x: self.x * factor,
-            y: self.y * factor
+            y: self.y * factor,
         }
     }
 
@@ -47,7 +47,7 @@ impl<T: Copy + Default> DoubleBuffer<T> {
     pub fn new(val: T) -> Self {
         Self {
             front: val,
-            back: val
+            back: val,
         }
     }
 
@@ -72,15 +72,15 @@ impl Default for Cell2Type {
 // Cellule modifiée pour une grille décalée
 #[derive(Clone, Debug, Default)]
 pub struct Cell2 {
-    pub velocity: DoubleBuffer<Vector22>,  // Vélocités sur les arêtes
+    pub velocity: DoubleBuffer<Vector22>, // Vélocités sur les arêtes
     pub pressure: f32,                    // Pression au centre
     pub density: DoubleBuffer<f32>,       // Densité au centre (fumée/colorant)
     pub div: f32,                         // Divergence calculée
     pub cell_type: Cell2Type,             // Type de cellule (fluide ou solide)
 
     // Facteurs de relaxation pour la résolution de l'incompressibilité
-    pub s_nbs: [Vector22; 2],              // Facteurs s pour les voisins [négatifs, positifs]
-    pub s_tot_inv: f32,                   // Inverse de la somme des facteurs s
+    pub s_nbs: [Vector22; 2], // Facteurs s pour les voisins [négatifs, positifs]
+    pub s_tot_inv: f32,       // Inverse de la somme des facteurs s
 }
 
 impl Cell2 {
@@ -98,7 +98,11 @@ impl Cell2 {
 
     // Pour convertir l'ancien "wall" en "cell_type"
     pub fn set_solid(&mut self, is_solid: bool) {
-        self.cell_type = if is_solid { Cell2Type::Solid } else { Cell2Type::Fluid };
+        self.cell_type = if is_solid {
+            Cell2Type::Solid
+        } else {
+            Cell2Type::Fluid
+        };
     }
 
     pub fn is_solid(&self) -> bool {
@@ -138,15 +142,15 @@ fn compact1by1(mut n: usize) -> usize {
 #[derive(Clone, Debug)]
 pub struct Grid2 {
     pub cells: Vec<Cell2>,
-    pub width: usize,          // Nombre de cellules en largeur
-    pub height: usize,         // Nombre de cellules en hauteur
-    pub cell_size: f32,        // Taille d'une cellule
+    pub width: usize,   // Nombre de cellules en largeur
+    pub height: usize,  // Nombre de cellules en hauteur
+    pub cell_size: f32, // Taille d'une cellule
 
     // Offsets pour les vélocités sur la grille décalée
     pub offsets: [Vector22; 2],
 
     // Cache pour accélérer les opérations
-    idx_cache: Vec<(usize, usize)>,  // Cache pour les décodages Morton
+    idx_cache: Vec<(usize, usize)>, // Cache pour les décodages Morton
 }
 
 impl Grid2 {
@@ -176,8 +180,8 @@ impl Grid2 {
             cell_size,
             // Offset pour u (x) et v (y) sur la grille décalée
             offsets: [
-                Vector22::new(0.0, half_cell),  // Offset u (x). Arêtes verticales
-                Vector22::new(half_cell, 0.0),  // Offset v (y). Arêtes horizontales
+                Vector22::new(0.0, half_cell), // Offset u (x). Arêtes verticales
+                Vector22::new(half_cell, 0.0), // Offset v (y). Arêtes horizontales
             ],
             idx_cache,
         };
@@ -213,7 +217,7 @@ impl Grid2 {
         if idx < self.idx_cache.len() {
             self.idx_cache[idx]
         } else {
-            morton_decode(idx)  // Fallback si hors du cache
+            morton_decode(idx) // Fallback si hors du cache
         }
     }
 
@@ -229,13 +233,23 @@ impl Grid2 {
 
     // Accès à une cellule par index (i, j) avec vérification
     pub fn cell_idx(&self, i: usize, j: usize) -> &Cell2 {
-        debug_assert!(self.in_bounds(i, j), "Cell index out of bounds: ({}, {})", i, j);
+        debug_assert!(
+            self.in_bounds(i, j),
+            "Cell index out of bounds: ({}, {})",
+            i,
+            j
+        );
         let idx = self.idx(i, j);
         &self.cells[idx]
     }
 
     pub fn cell_mut_idx(&mut self, i: usize, j: usize) -> &mut Cell2 {
-        debug_assert!(self.in_bounds(i, j), "Cell index out of bounds: ({}, {})", i, j);
+        debug_assert!(
+            self.in_bounds(i, j),
+            "Cell index out of bounds: ({}, {})",
+            i,
+            j
+        );
         let idx = self.idx(i, j);
         &mut self.cells[idx]
     }
@@ -264,13 +278,10 @@ impl Grid2 {
 
     // Itérer sur toutes les cellules en ordre Morton — plus efficace avec le cache
     pub fn iter_morton(&self) -> impl Iterator<Item = (usize, usize, usize)> + '_ {
-        self.cells
-            .iter()
-            .enumerate()
-            .map(move |(idx, _)| {
-                let (i, j) = self.decode_idx(idx);
-                (i, j, idx)
-            })
+        self.cells.iter().enumerate().map(move |(idx, _)| {
+            let (i, j) = self.decode_idx(idx);
+            (i, j, idx)
+        })
     }
 
     // Itérer uniquement sur les cellules de simulation (évite les bords)
@@ -280,20 +291,26 @@ impl Grid2 {
     }
 
     // Ajouter un obstacle circulaire
-    pub fn add_circle_obstacle(&mut self, center_x: f32, center_y: f32, radius: f32, vel: Option<Vector22>) {
+    pub fn add_circle_obstacle(
+        &mut self,
+        center_x: f32,
+        center_y: f32,
+        radius: f32,
+        vel: Option<Vector22>,
+    ) {
         let velocity = vel.unwrap_or(Vector22::zeros());
 
         // Parcourir toutes les cellules de la grille de simulation
-        for j in 1..self.height-1 {
-            for i in 1..self.width-1 {
+        for j in 1..self.height - 1 {
+            for i in 1..self.width - 1 {
                 let cell_center_x = (i as f32 + 0.5) * self.cell_size;
                 let cell_center_y = (j as f32 + 0.5) * self.cell_size;
 
                 let dx = cell_center_x - center_x;
                 let dy = cell_center_y - center_y;
-                let dist_squared = dx*dx + dy*dy;
+                let dist_squared = dx * dx + dy * dy;
 
-                if dist_squared <= radius*radius {
+                if dist_squared <= radius * radius {
                     let cell = self.cell_mut_idx(i, j);
                     cell.set_solid(true);
                     cell.velocity.back = velocity;
@@ -307,13 +324,29 @@ impl Grid2 {
     fn get_neighbor_indices(&self, i: usize, j: usize) -> [[Option<usize>; 2]; 2] {
         [
             [
-                if i > 0 { Some(self.idx(i-1, j)) } else { None },
-                if j > 0 { Some(self.idx(i, j-1)) } else { None }
-            ],  // Voisins négatifs (gauche, haut)
+                if i > 0 {
+                    Some(self.idx(i - 1, j))
+                } else {
+                    None
+                },
+                if j > 0 {
+                    Some(self.idx(i, j - 1))
+                } else {
+                    None
+                },
+            ], // Voisins négatifs (gauche, haut)
             [
-                if i + 1 < self.width { Some(self.idx(i+1, j)) } else { None },
-                if j + 1 < self.height { Some(self.idx(i, j+1)) } else { None }
-            ],  // Voisins positifs (droite, bas)
+                if i + 1 < self.width {
+                    Some(self.idx(i + 1, j))
+                } else {
+                    None
+                },
+                if j + 1 < self.height {
+                    Some(self.idx(i, j + 1))
+                } else {
+                    None
+                },
+            ], // Voisins positifs (droite, bas)
         ]
     }
 
@@ -330,30 +363,45 @@ impl Grid2 {
             self.apply_forces(dt, gravity);
             println!("----- APRÈS FORCES -----");
             self.check_velocity_noise();
-            println!("Total densité après forces externes: {:.2}", self.total_density());
+            println!(
+                "Total densité après forces externes: {:.2}",
+                self.total_density()
+            );
 
             // 2. Résoudre l'incompressibilité
             self.solve_incompressibility(dt, 20, 1000.0, 1.9);
             println!("----- APRÈS INCOMPRESSIBILITÉ -----");
             self.check_velocity_noise();
-            println!("Total densité après solve incompressibility: {:.2}", self.total_density());
+            println!(
+                "Total densité après solve incompressibility: {:.2}",
+                self.total_density()
+            );
 
             // 3. Advection
             self.advect_velocity(dt);
             println!("----- APRÈS ADVECTION VITESSE -----");
             self.check_velocity_noise();
-            println!("Total densité après advect velocity: {:.2}", self.total_density());
+            println!(
+                "Total densité après advect velocity: {:.2}",
+                self.total_density()
+            );
 
             self.advect_density(dt);
             println!("----- APRÈS ADVECTION DENSITÉ -----");
             self.check_velocity_noise();
-            println!("Total densité après advect density: {:.2}", self.total_density());
+            println!(
+                "Total densité après advect density: {:.2}",
+                self.total_density()
+            );
 
             // 4. Appliquer les conditions aux limites
             self.apply_boundary_conditions();
             println!("----- APRÈS CONDITIONS AUX LIMITES -----");
             self.check_velocity_noise();
-            println!("Total densité après apply boundary conditions: {:.2}", self.total_density());
+            println!(
+                "Total densité après apply boundary conditions: {:.2}",
+                self.total_density()
+            );
         } else if LOG == false {
             // Version sans logs
 
@@ -376,7 +424,8 @@ impl Grid2 {
     pub fn apply_forces(&mut self, dt: f32, gravity: Vector22) {
         // Version Morton — itérer sur les cellules en ordre Morton
         // Collecter d'abord les indices des cellules fluides
-        let fluid_indices: Vec<_> = self.iter_simulation_cells()
+        let fluid_indices: Vec<_> = self
+            .iter_simulation_cells()
             .filter(|&(_, _, idx)| self.cells[idx].cell_type == Cell2Type::Fluid)
             .map(|(_, _, idx)| idx)
             .collect();
@@ -390,17 +439,27 @@ impl Grid2 {
 
     // === RÉSOLUTION DE L'INCOMPRESSIBILITÉ ===
     // Améliorons aussi le solveur d'incompressibilité pour garantir une meilleure convergence
-    pub fn solve_incompressibility(&mut self, dt: f32, iterations: usize, density: f32, relaxation: f32) {
+    pub fn solve_incompressibility(
+        &mut self,
+        dt: f32,
+        iterations: usize,
+        density: f32,
+        relaxation: f32,
+    ) {
         let cp = density * self.cell_size / dt;
 
         // Fonction pour déterminer si une cellule contribue à la pression (1.0 pour fluide, 0.0 pour solide)
         let s_factor = |cell: &Cell2| -> f32 {
-            if cell.cell_type == Cell2Type::Solid { 0.0 } else { 1.0 }
+            if cell.cell_type == Cell2Type::Solid {
+                0.0
+            } else {
+                1.0
+            }
         };
 
         // Calculer les facteurs s pour tous les voisins — version sécurisée
-        for j in 1..self.height-1 {
-            for i in 1..self.width-1 {
+        for j in 1..self.height - 1 {
+            for i in 1..self.width - 1 {
                 let idx = self.idx(i, j);
 
                 // Vérifier si la cellule actuelle est solide
@@ -414,17 +473,33 @@ impl Grid2 {
                 let has_pos_i = i + 1 < self.width;
                 let has_pos_j = j + 1 < self.height;
 
-                let neg_i = if has_neg_i { self.idx(i-1, j) } else { idx };
-                let neg_j = if has_neg_j { self.idx(i, j-1) } else { idx };
-                let pos_i = if has_pos_i { self.idx(i+1, j) } else { idx };
-                let pos_j = if has_pos_j { self.idx(i, j+1) } else { idx };
+                let neg_i = if has_neg_i { self.idx(i - 1, j) } else { idx };
+                let neg_j = if has_neg_j { self.idx(i, j - 1) } else { idx };
+                let pos_i = if has_pos_i { self.idx(i + 1, j) } else { idx };
+                let pos_j = if has_pos_j { self.idx(i, j + 1) } else { idx };
 
                 // Calculer tous les facteurs s d'abord
                 let cell_s = s_factor(&self.cells[idx]);
-                let s_neg_i = if has_neg_i { s_factor(&self.cells[neg_i]) } else { 0.0 };
-                let s_neg_j = if has_neg_j { s_factor(&self.cells[neg_j]) } else { 0.0 };
-                let s_pos_i = if has_pos_i { s_factor(&self.cells[pos_i]) } else { 0.0 };
-                let s_pos_j = if has_pos_j { s_factor(&self.cells[pos_j]) } else { 0.0 };
+                let s_neg_i = if has_neg_i {
+                    s_factor(&self.cells[neg_i])
+                } else {
+                    0.0
+                };
+                let s_neg_j = if has_neg_j {
+                    s_factor(&self.cells[neg_j])
+                } else {
+                    0.0
+                };
+                let s_pos_i = if has_pos_i {
+                    s_factor(&self.cells[pos_i])
+                } else {
+                    0.0
+                };
+                let s_pos_j = if has_pos_j {
+                    s_factor(&self.cells[pos_j])
+                } else {
+                    0.0
+                };
 
                 // Mettre à jour les facteurs s pour tous les voisins de manière sécurisée
                 if has_neg_i {
@@ -442,11 +517,14 @@ impl Grid2 {
         }
 
         // Calculer la somme inverse des facteurs s pour chaque cellule
-        let cell_updates: Vec<_> = self.iter_simulation_cells()
+        let cell_updates: Vec<_> = self
+            .iter_simulation_cells()
             .filter(|&(_, _, idx)| self.cells[idx].cell_type != Cell2Type::Solid)
             .map(|(_, _, idx)| {
-                let sum = self.cells[idx].s_nbs[0].x + self.cells[idx].s_nbs[0].y +
-                    self.cells[idx].s_nbs[1].x + self.cells[idx].s_nbs[1].y;
+                let sum = self.cells[idx].s_nbs[0].x
+                    + self.cells[idx].s_nbs[0].y
+                    + self.cells[idx].s_nbs[1].x
+                    + self.cells[idx].s_nbs[1].y;
                 (idx, sum)
             })
             .collect();
@@ -461,8 +539,8 @@ impl Grid2 {
 
         // Vérification initiale de la divergence
         let mut initial_div = 0.0;
-        for j in 1..self.height-1 {
-            for i in 1..self.width-1 {
+        for j in 1..self.height - 1 {
+            for i in 1..self.width - 1 {
                 let idx = self.idx(i, j);
 
                 // Ignorer les cellules solides
@@ -475,8 +553,8 @@ impl Grid2 {
                     continue;
                 }
 
-                let pos_i = self.idx(i+1, j);
-                let pos_j = self.idx(i, j+1);
+                let pos_i = self.idx(i + 1, j);
+                let pos_j = self.idx(i, j + 1);
 
                 // Calculer la divergence
                 let vel_x = self.cells[idx].velocity.back.x;
@@ -499,16 +577,19 @@ impl Grid2 {
         let skip_iterations = initial_div < 1e-6;
         if skip_iterations {
             if LOG == true {
-                println!("Divergence initiale très faible ({:.6}), itérations ignorées", initial_div);
+                println!(
+                    "Divergence initiale très faible ({:.6}), itérations ignorées",
+                    initial_div
+                );
             }
             max_div = initial_div;
         } else {
             // Effectuer les itérations de résolution de pression
             for iter in 0..iterations {
-                let mut current_max_div : f32 = 0.0;
+                let mut current_max_div: f32 = 0.0;
 
-                for j in 1..self.height-1 {
-                    for i in 1..self.width-1 {
+                for j in 1..self.height - 1 {
+                    for i in 1..self.width - 1 {
                         let idx = self.idx(i, j);
 
                         // Vérifions d'abord le type de cellule
@@ -521,12 +602,12 @@ impl Grid2 {
                         let has_pos_j = j + 1 < self.height;
 
                         if !has_pos_i || !has_pos_j {
-                            continue;  // Ignorer les cellules au bord
+                            continue; // Ignorer les cellules au bord
                         }
 
                         // Voisins positifs (droite, bas)
-                        let pos_i = self.idx(i+1, j);
-                        let pos_j = self.idx(i, j+1);
+                        let pos_i = self.idx(i + 1, j);
+                        let pos_j = self.idx(i, j + 1);
 
                         // Calculer la divergence
                         let vel_x = self.cells[idx].velocity.back.x;
@@ -554,19 +635,25 @@ impl Grid2 {
 
                         // Vérifier à nouveau avant d'accéder aux cellules voisines
                         if self.cells[pos_i].cell_type != Cell2Type::Solid {
-                            self.cells[pos_i].velocity.back.x -= relaxation * s_nbs_1.x * div_normed;
+                            self.cells[pos_i].velocity.back.x -=
+                                relaxation * s_nbs_1.x * div_normed;
                         }
 
                         if self.cells[pos_j].cell_type != Cell2Type::Solid {
-                            self.cells[pos_j].velocity.back.y -= relaxation * s_nbs_1.y * div_normed;
+                            self.cells[pos_j].velocity.back.y -=
+                                relaxation * s_nbs_1.y * div_normed;
                         }
                     }
                 }
 
                 // AMÉLIORATION: Vérification de convergence
                 if LOG == true {
-                    if iter % 5 == 0 {  // Affichage tous les 5 itérations pour éviter de spammer
-                        println!("Itération {}: divergence max = {:.6}", iter, current_max_div);
+                    if iter % 5 == 0 {
+                        // Affichage tous les 5 itérations pour éviter de spammer
+                        println!(
+                            "Itération {}: divergence max = {:.6}",
+                            iter, current_max_div
+                        );
                     }
                 }
 
@@ -574,17 +661,24 @@ impl Grid2 {
                 max_div = current_max_div;
 
                 // Sortir si la convergence est suffisante
-                
+
                 if current_max_div < 1e-5 {
                     if LOG == true {
-                        println!("Convergence atteinte après {} itérations (divergence = {:.6})", iter + 1, current_max_div);
+                        println!(
+                            "Convergence atteinte après {} itérations (divergence = {:.6})",
+                            iter + 1,
+                            current_max_div
+                        );
                     }
                     break;
                 }
             }
         }
         if LOG == true {
-            println!("Divergence finale après {} itérations: {:.6}", iterations, max_div);
+            println!(
+                "Divergence finale après {} itérations: {:.6}",
+                iterations, max_div
+            );
         }
     }
 
@@ -596,8 +690,8 @@ impl Grid2 {
         }
 
         // Advection pour chaque cellule de la grille de simulation
-        for j in 1..self.height-1 {
-            for i in 1..self.width-1 {
+        for j in 1..self.height - 1 {
+            for i in 1..self.width - 1 {
                 let idx = self.idx(i, j);
 
                 if self.cells[idx].cell_type == Cell2Type::Solid {
@@ -605,7 +699,7 @@ impl Grid2 {
                 }
 
                 // Advection de la vitesse en x (u) — avec vérification
-                if i > 0 && self.cells[self.idx(i-1, j)].cell_type != Cell2Type::Solid {
+                if i > 0 && self.cells[self.idx(i - 1, j)].cell_type != Cell2Type::Solid {
                     let pos_x = (i as f32) * self.cell_size;
                     let pos_y = (j as f32 + 0.5) * self.cell_size;
 
@@ -617,11 +711,12 @@ impl Grid2 {
                     let start_y = pos_y - dt * vel.y;
 
                     // Vitesse à la position de départ
-                    self.cells[idx].velocity.front.x = self.sample_velocity_component_at(start_x, start_y, 0);
+                    self.cells[idx].velocity.front.x =
+                        self.sample_velocity_component_at(start_x, start_y, 0);
                 }
 
                 // Advection de la vitesse en y (v) — avec vérification
-                if j > 0 && self.cells[self.idx(i, j-1)].cell_type != Cell2Type::Solid {
+                if j > 0 && self.cells[self.idx(i, j - 1)].cell_type != Cell2Type::Solid {
                     let pos_x = (i as f32 + 0.5) * self.cell_size;
                     let pos_y = (j as f32) * self.cell_size;
 
@@ -633,7 +728,8 @@ impl Grid2 {
                     let start_y = pos_y - dt * vel.y;
 
                     // Vitesse à la position de départ
-                    self.cells[idx].velocity.front.y = self.sample_velocity_component_at(start_x, start_y, 1);
+                    self.cells[idx].velocity.front.y =
+                        self.sample_velocity_component_at(start_x, start_y, 1);
                 }
             }
         }
@@ -652,8 +748,8 @@ impl Grid2 {
         }
 
         // Advection pour chaque cellule de la grille de simulation
-        for j in 1..self.height-1 {
-            for i in 1..self.width-1 {
+        for j in 1..self.height - 1 {
+            for i in 1..self.width - 1 {
                 let idx = self.idx(i, j);
 
                 if self.cells[idx].cell_type == Cell2Type::Solid {
@@ -676,10 +772,13 @@ impl Grid2 {
                     if self.cells[idx].density.back > 0.1 {
                         println!(
                             "Advection densité Cellule ({}, {}): Densité: {:.3}, Vitesse: ({:.3}, {:.3}), Trace vers: ({:.3}, {:.3})",
-                            i, j,
+                            i,
+                            j,
                             self.cells[idx].density.back,
-                            vel.x, vel.y,
-                            start_x / self.cell_size, start_y / self.cell_size
+                            vel.x,
+                            vel.y,
+                            start_x / self.cell_size,
+                            start_y / self.cell_size
                         );
                     }
                 }
@@ -793,14 +892,12 @@ impl Grid2 {
         }
     }
 
-
-
     // === CONDITIONS AUX LIMITES ===
     pub fn apply_boundary_conditions(&mut self) {
         // Pour chaque cellule sur les bords (sans les coins)
 
         // Bord gauche (entrée)
-        for j in 1..self.height-1 {
+        for j in 1..self.height - 1 {
             let idx = self.idx(1, j);
             let cell = &mut self.cells[idx];
             cell.velocity.back.x = 0.0;
@@ -808,19 +905,19 @@ impl Grid2 {
         }
 
         // Bord droit (sortie libre)
-        for j in 1..self.height-1 {
+        for j in 1..self.height - 1 {
             let i = self.width - 2;
             let idx = self.idx(i, j);
 
             // Vérifier si la cellule à gauche est disponible
-            if i > 0 && self.in_bounds(i-1, j) {
-                let idx_left = self.idx(i-1, j);
+            if i > 0 && self.in_bounds(i - 1, j) {
+                let idx_left = self.idx(i - 1, j);
                 self.cells[idx].velocity.back.x = self.cells[idx_left].velocity.back.x;
             }
         }
 
         // Bords haut et bas (pas de glissement)
-        for i in 1..self.width-1 {
+        for i in 1..self.width - 1 {
             // Bord haut
             if self.in_bounds(i, 1) {
                 let idx_top = self.idx(i, 1);
@@ -828,14 +925,15 @@ impl Grid2 {
             }
 
             // Bord bas
-            if self.in_bounds(i, self.height-2) {
-                let idx_bottom = self.idx(i, self.height-2);
+            if self.in_bounds(i, self.height - 2) {
+                let idx_bottom = self.idx(i, self.height - 2);
                 self.cells[idx_bottom].velocity.back.y = 0.0;
             }
         }
 
         // S'assurer que les cellules solides ont une vitesse nulle
-        let solid_indices: Vec<_> = self.iter_morton()
+        let solid_indices: Vec<_> = self
+            .iter_morton()
             .filter_map(|(_i, _j, idx)| {
                 if self.cells[idx].cell_type == Cell2Type::Solid {
                     Some(idx)
@@ -853,7 +951,6 @@ impl Grid2 {
         self.extrapolate_velocity();
     }
 
-
     // Extrapolation des vitesses aux bords
     // Amélioration de l'extrapolation des vitesses aux bords pour éviter la propagation d'erreurs
     fn extrapolate_velocity(&mut self) {
@@ -861,7 +958,7 @@ impl Grid2 {
         let mut has_non_zero = false;
 
         // Extrapolation horizontale (pour u)
-        for i in 1..self.width-1 {
+        for i in 1..self.width - 1 {
             // Copier la vitesse u du rang 1 vers le rang 0
             let vel_x = self.cells[self.idx(i, 1)].velocity.back.x;
             if vel_x.abs() > 1e-6 {
@@ -882,7 +979,7 @@ impl Grid2 {
         }
 
         // Extrapolation verticale (pour v)
-        for j in 1..self.height-1 {
+        for j in 1..self.height - 1 {
             // Copier la vitesse v du rang 1 vers le rang 0
             let vel_y = self.cells[self.idx(1, j)].velocity.back.y;
             if vel_y.abs() > 1e-6 {
@@ -920,7 +1017,7 @@ impl Grid2 {
         let (px, py) = match component {
             0 => (x, y - self.offsets[0].y), // Pour u (composante x)
             1 => (x - self.offsets[1].x, y), // Pour v (composante y)
-            _ => panic!("Composant invalide")
+            _ => panic!("Composant invalide"),
         };
 
         // Position dans la grille (en unités de cellule)
@@ -1014,13 +1111,13 @@ impl Grid2 {
         }
 
         // Ajouter une vitesse constante (par exemple, nord-est)
-        for i in 1..self.width-1 {
-            for j in 1..self.height-1 {
+        for i in 1..self.width - 1 {
+            for j in 1..self.height - 1 {
                 let idx = self.idx(i, j);
                 if self.cells[idx].cell_type == Cell2Type::Fluid {
                     // Vitesse constante vers la droite et le bas
-                    self.cells[idx].velocity.back.x = 0.5;  // Vitesse vers la droite
-                    self.cells[idx].velocity.back.y = 0.5;  // Vitesse vers le bas
+                    self.cells[idx].velocity.back.x = 0.5; // Vitesse vers la droite
+                    self.cells[idx].velocity.back.y = 0.5; // Vitesse vers le bas
                 }
             }
         }
@@ -1042,8 +1139,8 @@ impl Grid2 {
             let mut weighted_x = 0.0;
             let mut weighted_y = 0.0;
 
-            for j in 1..self.height-1 {
-                for i in 1..self.width-1 {
+            for j in 1..self.height - 1 {
+                for i in 1..self.width - 1 {
                     let idx = self.idx(i, j);
                     let d = self.cells[idx].density.back;
                     total_density += d;
@@ -1055,7 +1152,10 @@ impl Grid2 {
             if total_density > 0.0 {
                 let center_of_mass_x = weighted_x / total_density;
                 let center_of_mass_y = weighted_y / total_density;
-                println!("Centre de masse: ({:.2}, {:.2})", center_of_mass_x, center_of_mass_y);
+                println!(
+                    "Centre de masse: ({:.2}, {:.2})",
+                    center_of_mass_x, center_of_mass_y
+                );
             }
         }
     }
@@ -1074,17 +1174,25 @@ impl Grid2 {
             }
         }
 
-        let avg_vel_x = if count > 0 { sum_vel_x / count as f32 } else { 0.0 };
-        let avg_vel_y = if count > 0 { sum_vel_y / count as f32 } else { 0.0 };
+        let avg_vel_x = if count > 0 {
+            sum_vel_x / count as f32
+        } else {
+            0.0
+        };
+        let avg_vel_y = if count > 0 {
+            sum_vel_y / count as f32
+        } else {
+            0.0
+        };
         let avg_magnitude = (avg_vel_x * avg_vel_x + avg_vel_y * avg_vel_y).sqrt();
 
-        println!("Vitesse résiduelle moyenne: ({:.6}, {:.6}), magnitude: {:.6}",
-                 avg_vel_x, avg_vel_y, avg_magnitude);
+        println!(
+            "Vitesse résiduelle moyenne: ({:.6}, {:.6}), magnitude: {:.6}",
+            avg_vel_x, avg_vel_y, avg_magnitude
+        );
 
         (avg_vel_x, avg_vel_y, avg_magnitude)
     }
-
-
 
     // Ajouter une source de densité
     pub fn add_density_source(&mut self, i: usize, j: usize, amount: f32) {
@@ -1098,12 +1206,12 @@ impl Grid2 {
 
     // Calculer la densité totale dans la grille (pour vérification de conservation)
     pub fn total_density(&self) -> f32 {
-        self.cells.iter()
+        self.cells
+            .iter()
             .filter(|cell| cell.cell_type == Cell2Type::Fluid)
             .map(|cell| cell.density.back)
             .sum()
     }
-   
 
     /// Initialiser une cellule avec une vitesse et densité données
     pub fn cell_init(&mut self, i: usize, j: usize, vx: f32, vy: f32, density: f32) {
@@ -1145,16 +1253,30 @@ impl Grid2 {
     }
 
     /// Ajouter une source circulaire de densité et de vitesse au centre de la grille
-    pub fn center_source(&mut self, radius: f32, density_value: f32, velocity_magnitude: f32, is_radial: bool) {
+    pub fn center_source(
+        &mut self,
+        radius: f32,
+        density_value: f32,
+        velocity_magnitude: f32,
+        is_radial: bool,
+    ) {
         // Calculer le centre de la grille
         let center_x = (self.width as f32 / 2.0) as usize;
         let center_y = (self.height as f32 / 2.0) as usize;
 
         // Déterminer la zone à scanner (carré inscrit dans le cercle)
         let r_int = radius.floor() as usize;
-        let start_i = if center_x > r_int { center_x - r_int } else { 1 };
+        let start_i = if center_x > r_int {
+            center_x - r_int
+        } else {
+            1
+        };
         let end_i = (center_x + r_int).min(self.width - 1);
-        let start_j = if center_y > r_int { center_y - r_int } else { 1 };
+        let start_j = if center_y > r_int {
+            center_y - r_int
+        } else {
+            1
+        };
         let end_j = (center_y + r_int).min(self.height - 1);
 
         for i in start_i..=end_i {
@@ -1181,8 +1303,10 @@ impl Grid2 {
 
                                 // Ajouter une vitesse dans la direction du centre
                                 let factor = 1.0 - (distance / radius); // Plus fort au centre
-                                self.cells[idx].velocity.back.x += dir_x * velocity_magnitude * factor;
-                                self.cells[idx].velocity.back.y += dir_y * velocity_magnitude * factor;
+                                self.cells[idx].velocity.back.x +=
+                                    dir_x * velocity_magnitude * factor;
+                                self.cells[idx].velocity.back.y +=
+                                    dir_y * velocity_magnitude * factor;
                             }
                         } else {
                             // Vitesse circulaire (tourbillon)
@@ -1193,8 +1317,10 @@ impl Grid2 {
 
                                 // Vitesse qui augmente avec la distance jusqu'à un certain point
                                 let factor = (distance / radius) * (1.0 - distance / radius) * 4.0;
-                                self.cells[idx].velocity.back.x += dir_x * velocity_magnitude * factor;
-                                self.cells[idx].velocity.back.y += dir_y * velocity_magnitude * factor;
+                                self.cells[idx].velocity.back.x +=
+                                    dir_x * velocity_magnitude * factor;
+                                self.cells[idx].velocity.back.y +=
+                                    dir_y * velocity_magnitude * factor;
                             }
                         }
                     }
@@ -1253,8 +1379,8 @@ impl Grid2 {
         let center_x = center_x as usize;
         let center_y = center_y as usize;
 
-        for i in 1..self.width-1 {
-            for j in 1..self.height-1 {
+        for i in 1..self.width - 1 {
+            for j in 1..self.height - 1 {
                 let dx = i as isize - center_x as isize;
                 let dy = j as isize - center_y as isize;
                 if dx * dx + dy * dy <= (radius * radius) as isize {
@@ -1265,13 +1391,18 @@ impl Grid2 {
     }
 
     /// Créer une configuration type tunnel de vent
-    pub fn initialize_wind_tunnel(&mut self, density: f32, hole_positions: &[usize], flow_velocity: f32) {
+    pub fn initialize_wind_tunnel(
+        &mut self,
+        density: f32,
+        hole_positions: &[usize],
+        flow_velocity: f32,
+    ) {
         let left_wall = 1;
         let box_width = (self.width / 30).max(2); // Largeur de la boîte
         let right_wall = left_wall + box_width;
 
         // Créer les murs
-        for j in 1..self.height-1 {
+        for j in 1..self.height - 1 {
             // Mur gauche
             self.wall_init(left_wall, j, true);
 
@@ -1283,7 +1414,7 @@ impl Grid2 {
 
         // Ajouter de la densité dans la boîte
         for i in (left_wall + 1)..right_wall {
-            for j in 1..self.height-1 {
+            for j in 1..self.height - 1 {
                 if self.cells[self.idx(i, j)].cell_type == Cell2Type::Fluid {
                     self.cell_init(i, j, flow_velocity, 0.0, density);
                 }
@@ -1301,7 +1432,6 @@ impl Grid2 {
         }
     }
 
-
     /// Configuration pour favoriser la formation de tourbillons de Kármán
     pub fn setup_karman_vortex(&mut self, flow_density: f32, flow_velocity: f32) {
         let radius = (self.width / 6) as f32 - 10.5; // Rayon de l'obstacle
@@ -1311,7 +1441,7 @@ impl Grid2 {
         self.circle(center.0 as isize, center.1 as isize, radius);
 
         // Flux horizontal
-        for j in 1..self.height-1 {
+        for j in 1..self.height - 1 {
             for i in 1..15 {
                 let idx = self.idx(i, j);
                 if self.cells[idx].cell_type == Cell2Type::Fluid {
@@ -1321,9 +1451,10 @@ impl Grid2 {
             }
         }
 
-        println!("✔ Configuration de tourbillons de Kármán terminée: obstacle central + flux entrant.");
+        println!(
+            "✔ Configuration de tourbillons de Kármán terminée: obstacle central + flux entrant."
+        );
     }
-
 }
 
 // Extension: Helper pour Vector22

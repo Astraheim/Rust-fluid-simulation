@@ -1,8 +1,8 @@
 use crate::conditions::*;
-use crate::grid::{Grid};
-use rand::{Rng};
-use rand::distr::Uniform;
+use crate::grid::Grid;
+use rand::Rng;
 use rand::distr::Distribution;
+use rand::distr::Uniform;
 // Last update to rendu_code_tex: 2025-05-02
 // last modif: 2025-05-02
 
@@ -40,8 +40,6 @@ ENG :
     Enable periodic or deterministic patterns for specific simulations.
 */
 
-
-
 impl Grid {
     /// Place randomly different forms in the grid
     pub fn place_random_objects(&mut self, num_objects: usize, min_size: f32, max_size: f32) {
@@ -68,14 +66,13 @@ impl Grid {
                     let width = size;
                     let height = rng.random_range(min_size..=max_size);
                     self.rectangle(x, y, width, height);
-                },
+                }
                 _ => unreachable!(),
             }
         }
 
         println!("✔ Placed {} random objects in the grid.", num_objects);
     }
-
 
     /// Create a square in the grid
     pub fn square(&mut self, center_x: isize, center_y: isize, side_length: f32) {
@@ -93,7 +90,6 @@ impl Grid {
             }
         }
     }
-
 
     /// Create a rectangle in the grid
     pub fn rectangle(&mut self, center_x: isize, center_y: isize, width: f32, height: f32) {
@@ -113,7 +109,6 @@ impl Grid {
         }
     }
 
-
     /// Create a triangle in the grid
     pub fn triangle(&mut self, center_x: isize, center_y: isize, size: f32) {
         let height = size as isize;
@@ -126,7 +121,7 @@ impl Grid {
             let end_x = center_x + width_at_y;
 
             for x in start_x..=end_x {
-                let y = center_y + height - dy; 
+                let y = center_y + height - dy;
                 if x >= 0 && x <= N as isize && y >= 0 && y <= N as isize {
                     self.wall_init(y as usize, x as usize, true);
                 }
@@ -134,23 +129,21 @@ impl Grid {
         }
     }
 
-
     /// Draw only the outline of a triangle in the grid
     pub fn triangle_outline(&mut self, center_x: isize, center_y: isize, size: f32) {
         let height = size as isize;
         let half_base = (size / 2.0) as isize;
 
         // Three corners of the triangle
-        let top = (center_x, center_y - height/2);
-        let bottom_left = (center_x - half_base, center_y + height/2);
-        let bottom_right = (center_x + half_base, center_y + height/2);
+        let top = (center_x, center_y - height / 2);
+        let bottom_left = (center_x - half_base, center_y + height / 2);
+        let bottom_right = (center_x + half_base, center_y + height / 2);
 
         // Draw the three sides
         self.draw_line(top.0, top.1, bottom_left.0, bottom_left.1);
         self.draw_line(bottom_left.0, bottom_left.1, bottom_right.0, bottom_right.1);
         self.draw_line(bottom_right.0, bottom_right.1, top.0, top.1);
     }
-
 
     /// Another utility using bresenham algorithm to draw lines
     fn draw_line(&mut self, x0: isize, y0: isize, x1: isize, y1: isize) {
